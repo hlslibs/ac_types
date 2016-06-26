@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 3.7                                                 *
  *                                                                        *
- *  Release Date    : Wed Jun  1 13:21:52 PDT 2016                        *
+ *  Release Date    : Sat Jun 25 13:27:03 PDT 2016                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.0                                               *
+ *  Release Build   : 3.7.1                                               *
  *                                                                        *
  *  Copyright 2013-2016, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -751,7 +751,7 @@ namespace ac {
   template<typename T>
   struct ac_float_represent {
     typedef typename ac_fixed_represent<T>::type fx_t;
-    typedef ac_float<fx_t::width,fx_t::i_width,1,fx_t::q_mode> type; 
+    typedef ac_float<fx_t::width+!fx_t::sign,fx_t::i_width+!fx_t::sign,1,fx_t::q_mode> type; 
   };
   template<> struct ac_float_represent<float> {
     typedef ac_private::ac_float_cfloat_t type;
