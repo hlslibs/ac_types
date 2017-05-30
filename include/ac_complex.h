@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 3.7                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 25 13:27:03 PDT 2016                        *
+ *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.1                                               *
+ *  Release Build   : 3.7.2                                               *
  *                                                                        *
  *  Copyright 2008-2016, Mentor Graphics Corporation,                     *
  *                                                                        *

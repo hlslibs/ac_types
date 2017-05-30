@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.7                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 25 13:27:03 PDT 2016                        *
+ *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.1                                               *
+ *  Release Build   : 3.7.2                                               *
  *                                                                        *
- *  Copyright 2005-2016, Mentor Graphics Corporation,                     *
+ *  Copyright 2005-2017, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -132,10 +132,10 @@ __AC_FIXED_UTILITY_BASE
     else if(S) {
       if(overflow) {
         ac_private::iv_extend<N-1>(Base::v, ~0);
-        Base::v[N-1] = ~(~0 << ((W-1)&31));
+        Base::v[N-1] = ~((unsigned)~0 << ((W-1)&31));
       } else if(underflow) {
         ac_private::iv_extend<N-1>(Base::v, 0);
-        Base::v[N-1] = (~0 << ((W-1)&31));
+        Base::v[N-1] = ((unsigned)~0 << ((W-1)&31));
         if(O==AC_SAT_SYM)
           Base::v[0] |= 1;
       } else
@@ -144,7 +144,7 @@ __AC_FIXED_UTILITY_BASE
     else {
       if(overflow) {
         ac_private::iv_extend<N-1>(Base::v, ~0);
-        Base::v[N-1] = ~(~0 << (W&31));
+        Base::v[N-1] = ~((unsigned)~0 << (W&31));
       } else if(underflow)
         ac_private::iv_extend<N>(Base::v, 0);
       else
@@ -379,7 +379,7 @@ public:
       Base::operator =(0);
       if(S && V == AC_VAL_MIN) {
         const unsigned rem = (W-1)&31;
-        Base::v[N-1] = (-1 << rem);
+        Base::v[N-1] = ((unsigned)~0 << rem);
         if(O == AC_SAT_SYM) {
           if(W == 1)
             Base::v[0] = 0;
@@ -407,7 +407,7 @@ public:
 #endif
 
   // Explicit conversion functions to ac_int that captures all integer bits (bits are truncated)
-  inline ac_int<AC_MAX(I,1),S> to_ac_int() const { return ((ac_fixed<AC_MAX(I,1),AC_MAX(I,1),S>) *this).slc<AC_MAX(I,1)>(0); }
+  inline ac_int<AC_MAX(I,1),S> to_ac_int() const { return ((ac_fixed<AC_MAX(I,1),AC_MAX(I,1),S>) *this).template slc<AC_MAX(I,1)>(0); }
 
   // Explicit conversion functions to C built-in types -------------
   inline int to_int() const { return ((I-W) >= 32) ? 0 : (signed int) to_ac_int(); } 

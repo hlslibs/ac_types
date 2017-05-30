@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.7                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 25 13:27:03 PDT 2016                        *
+ *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.1                                               *
+ *  Release Build   : 3.7.2                                               *
  *                                                                        *
- *  Copyright 2004-2016, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2017, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -148,6 +148,7 @@ namespace ac_private {
 #endif
 
   enum {long_w = std::numeric_limits<unsigned long>::digits};
+  const unsigned int all_ones = (unsigned) ~0;
 
   // PRIVATE FUNCTIONS in namespace: for implementing ac_int/ac_fixed
 
@@ -308,7 +309,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_ones_to(const int *op){
-    if((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] | (~0 << (B&31)))))
+    if((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] | (all_ones << (B&31)))))
       return false; 
     return iv_equal_ones<B/32>(op);
   }
@@ -321,7 +322,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_zeros_to(const int *op){
-    if((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] & ~(~0 << (B&31)))))
+    if((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] & ~(all_ones << (B&31)))))
       return false; 
     return iv_equal_zero<B/32>(op);
   }
@@ -780,7 +781,7 @@ namespace ac_private {
           r1[k2_i + j] = (uw2) l;
           l >>= w2_length;
           if(ov1)
-            l |= ((sw4) -1 << w2_length);
+            l |= ((uw4) -1 << w2_length);
           if(ov2)
             l ^= ((sw4) 1 << w2_length);
         }
@@ -1081,12 +1082,12 @@ namespace ac_private {
     }
     else {
       const unsigned s31 = B & 31;
-      const unsigned ishift = (unsigned) (((B >> 5) > Nr) ? Nr : (B >> 5));
+      const int ishift = (((B >> 5) > Nr) ? Nr : (B >> 5));
       iv_extend<ishift>(r, 0);
-      const unsigned M1 = AC_MIN(N+ishift,Nr);
+      const int M1 = AC_MIN(N+ishift,Nr);
       if(s31) {
         unsigned lw = 0;
-        for(unsigned i=ishift; i < M1; i++) {
+        for(int i=ishift; i < M1; i++) {
           unsigned hw = op1[i-ishift];
           r[i] = (hw << s31) | (lw >> ((32-s31)&31));  // &31 is to quiet compilers
           lw = hw;
@@ -1096,7 +1097,7 @@ namespace ac_private {
           iv_extend<Nr-M1-1>(r+M1+1, r[M1] < 0 ? ~0 : 0);
         }
       } else {
-        for(unsigned i=ishift; i < M1 ; i++)
+        for(int i=ishift; i < M1 ; i++)
           r[i] = op1[i-ishift];
         iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? -1 : 0);
       }
@@ -1114,21 +1115,21 @@ namespace ac_private {
     if(!B) {
       const int M1 = AC_MIN(N,Nr);
       iv_copy<M1>(op1, r);
-      iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? -1 : 0);
+      iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? ~0 : 0);
     }
     else {
       const unsigned s31 = B & 31;
-      const unsigned ishift = (unsigned) (((B >> 5) > N) ? N : (B >> 5));
+      const int ishift = (((B >> 5) > N) ? N : (B >> 5));
       int ext = op1[N-1] < 0 ? ~0 : 0;
       if(s31 && ishift!=N) {
         unsigned lw = (ishift < N) ? op1[ishift] : ext;
-        for(unsigned i=0; i < Nr; i++) {
+        for(int i=0; i < Nr; i++) {
           unsigned hw = (i+ishift+1 < N) ? op1[i+ishift+1] : ext;
           r[i] = (lw >> s31) | (hw << ((32-s31)&31));  // &31 is to quiet compilers
           lw = hw;
         }
       } else {
-        for(unsigned i=0; i < Nr ; i++)
+        for(int i=0; i < Nr ; i++)
           r[i] = (i+ishift < N) ? op1[i+ishift] : ext;
       }
     }
@@ -1246,16 +1247,18 @@ namespace ac_private {
     bool neg = !sign_mag && v[n-1] < 0; 
     if(!left_just) {
       while(n-- && v[n] == (neg ? ~0 : 0)) {}  
-      w = 32*(n+1);
-      if(w) {
+      int w2 = 32*(n+1);
+      if(w2) {
         int m = v[n];
         for(int i = 16; i > 0; i >>= 1) {
           if((m >> i) == (neg ? ~0 : 0))
-            w -= i;
+            w2 -= i;
           else
             m >>= i;
         }
       } 
+      if(w2 < w)
+        w = w2;
       w += !sign_mag;
     }
     if(base == AC_DEC)
@@ -1460,14 +1463,14 @@ namespace ac_private {
       unsigned msb_b = msb & 31; 
       if(N2==1) { 
         if(msb_v == lsb_v) 
-          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (~(WS==32 ? 0 : ~0<<WS) << lsb_b);
+          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb_b);
         else {
-          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (~0 << lsb_b);
+          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (all_ones << lsb_b);
           unsigned m = (((unsigned) op2.v[0] >> 1) >> (31-lsb_b));
-          v[msb_v] ^= (v[msb_v] ^ m) & ~((~0<<1)<<msb_b);
+          v[msb_v] ^= (v[msb_v] ^ m) & ~((all_ones<<1)<<msb_b);
         }
       } else {
-        v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (~0 << lsb_b);
+        v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (all_ones << lsb_b);
         for(int i = 1; i < N2-1; i++)
           v[lsb_v+i] = (op2.v[i] << lsb_b) | (((unsigned) op2.v[i-1] >> 1) >> (31-lsb_b)); 
         unsigned t = (op2.v[N2-1] << lsb_b) | (((unsigned) op2.v[N2-2] >> 1) >> (31-lsb_b));
@@ -1478,7 +1481,7 @@ namespace ac_private {
         } 
         else
           m = t;
-        v[msb_v] ^= (v[msb_v] ^ m) & ~((~0<<1)<<msb_b);
+        v[msb_v] ^= (v[msb_v] ^ m) & ~((all_ones<<1)<<msb_b);
       }
     }
     unsigned leading_bits(bool bit) const {
@@ -1497,7 +1500,7 @@ namespace ac_private {
   }
   
   template<> template<> inline void iv<1>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
-    v[0] ^= (v[0] ^ (op2.v[0] << lsb)) & (~(WS==32 ? 0 : ~0<<WS) << lsb);
+    v[0] ^= (v[0] ^ (op2.v[0] << lsb)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb);
   }
   template<> template<> inline void iv<2>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
     Ulong l = to_uint64();
@@ -1767,7 +1770,7 @@ namespace ac {
 
   template<int LowerBound, int UpperBound>
   struct int_range {
-    enum { l_s = LowerBound < 0, u_s = UpperBound < 0, 
+    enum { l_s = (LowerBound < 0), u_s = (UpperBound < 0), 
            signedness = l_s || u_s,
            l_nbits = nbits<AC_ABS(LowerBound+l_s)+l_s>::val,
            u_nbits = nbits<AC_ABS(UpperBound+u_s)+u_s>::val,
@@ -2017,11 +2020,11 @@ public:
     return std::string(r);
   }
   inline static std::string type_name() {
-	const char *tf[] = {",false>", ",true>"};
-	std::string r = "ac_int<";
-	r += ac_int<32,true>(W).to_string(AC_DEC);
-	r += tf[S];
-	return r;
+    const char *tf[] = {",false>", ",true>"};
+    std::string r = "ac_int<";
+    r += ac_int<32,true>(W).to_string(AC_DEC);
+    r += tf[S];
+    return r;
   }
 
   // Arithmetic : Binary ----------------------------------------------------
@@ -2933,8 +2936,8 @@ template<ac_special_val val> inline C_TYPE value(C_TYPE); \
 template<> inline C_TYPE value<AC_VAL_0>(C_TYPE) { return (C_TYPE)0; } \
 SPECIAL_VAL_FOR_INTS_DC(C_TYPE, WI, SI) \
 template<> inline C_TYPE value<AC_VAL_QUANTUM>(C_TYPE) { return (C_TYPE)1; } \
-template<> inline C_TYPE value<AC_VAL_MAX>(C_TYPE) { return (C_TYPE)(SI ? ~((C_TYPE) -1 << (WI-1)) : (C_TYPE) -1); } \
-template<> inline C_TYPE value<AC_VAL_MIN>(C_TYPE) { return (C_TYPE)(SI ? (C_TYPE) 1 << (WI-1) : 0); }
+template<> inline C_TYPE value<AC_VAL_MAX>(C_TYPE) { return (C_TYPE)(SI ? ~(((C_TYPE) 1) << (WI-1)) : (C_TYPE) -1); } \
+template<> inline C_TYPE value<AC_VAL_MIN>(C_TYPE) { return (C_TYPE)(SI ? ((C_TYPE) 1) << (WI-1) : (C_TYPE) 0); }
                                                                                            
 SPECIAL_VAL_FOR_INTS(bool, 1, false)
 SPECIAL_VAL_FOR_INTS(char, 8, true)
