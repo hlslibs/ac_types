@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.7                                                 *
+ *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
+ *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.2                                               *
+ *  Release Build   : 3.9.0                                               *
  *                                                                        *
- *  Copyright 2013-2016, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2018, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -55,6 +55,10 @@
 #if (defined(_MSC_VER) && !defined(__EDG__))
 #pragma warning( push )
 #pragma warning( disable: 4003 4127 4308 4365 4514 4800 )
+#endif
+#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wparentheses"
 #endif
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -126,7 +130,7 @@ public:
 private:
   inline bool is_neg() const { return m < 0; }   // is_neg would be more efficient
 
-  enum {NZ_E = !!E, MIN_EXP = -NZ_E << (E-NZ_E), MAX_EXP = (1 << (E-NZ_E))-1};
+  enum {NZ_E = !!E, MIN_EXP = -(NZ_E << (E-NZ_E)), MAX_EXP = (1 << (E-NZ_E))-1};
 
 public:
   static const int width = W;
@@ -259,52 +263,130 @@ public:
     e = op.e;
   }
 
-  template<AC_FL_T(2)>
-  ac_float(const AC_FL(2) &op, bool assert_on_overflow=false, bool assert_on_rounding=false) {
-    typedef AC_FL(2) fl2_t;
-    enum {
-           ST2 = S|S2, WT2 = W2+(!S2&S), IT2 = I2+(!S2&S),
-           RND = Q!=AC_TRN & Q!=AC_TRN_ZERO & WT2 > W,
-           MAX_EXP2 = fl2_t::MAX_EXP, MIN_EXP2 = fl2_t::MIN_EXP,
-           I_DIFF = IT2-I,
-           MAX_EXP_T = MAX_EXP2 + I_DIFF + RND, MIN_EXP_T = MIN_EXP2 + I_DIFF,
-           MAX_EXP_T_P = MAX_EXP_T < 0 ? ~ MAX_EXP_T : MAX_EXP_T,
-           MIN_EXP_T_P = MIN_EXP_T < 0 ? ~ MIN_EXP_T : MIN_EXP_T,
-           WC_EXP_T = AC_MAX(MAX_EXP_T_P, MIN_EXP_T_P),
-           ET = ac::template nbits<WC_EXP_T>::val + 1 };
-
-    typedef ac_fixed<WT2,IT2,ST2> fx2_t;
-    typedef ac_fixed<WT2,I,S> fx_t;
-
-    fx2_t m2 = op.m;
-    fx_t t;
-    t.set_slc(0, m2.template slc<fx_t::width>(0));
-    ac_fixed<W+RND,I+RND,S,Q> m_1 = t;
+private:
+  template<int W2>
+  bool round(const ac_fixed<W2,I,true> &op2, bool assert_on_rounding=false) {
+    const bool rnd = Q!=AC_TRN && Q!=AC_TRN_ZERO && W2 > W;
     bool rnd_ovfl = false;
-    if(RND) {
+    m = 0;
+    if(rnd) {
+      ac_fixed<W+1,I+1,true,Q> m_1 = op2;
+      // overflow because of rounding would lead to go from 001111  to 01000 (extra bit prevents it)
+      //   change from 01000 to 00100 and store 0100 in m
       rnd_ovfl = !m_1[W] & m_1[W-1];
       m_1[W-1] = m_1[W-1] & !rnd_ovfl;
       m_1[W-2] = m_1[W-2] | rnd_ovfl;
+      m.set_slc(0, m_1.template slc<W>(0));
+      if(assert_on_rounding)
+        AC_ASSERT(m == op2, "Loss of precision due to Rounding");
+      return rnd_ovfl;
+    } else {
+      ac_fixed<W,I,true,Q> m_0 = op2;
+      m.set_slc(0, m_0.template slc<W>(0));
+      return false;
     }
-    m.set_slc(0, m_1.template slc<W>(0));
-    if(fx_t::width > W && assert_on_rounding)
-      AC_ASSERT(m == t, "Loss of precision due to Rounding in ac_float constructor");
-    ac_int<ET,true> exp = !m ? ac_int<ET,true> (0) :
-      ac_int<ET,true> (op.e + I_DIFF + (RND & rnd_ovfl));
-    adjust(exp, false, assert_on_overflow);
+  }
+
+  template<int min_exp2, int max_exp2, int W2, int I2, ac_q_mode Q2, ac_o_mode O2>
+  void assign_from(const ac_fixed<W2,I2,true,Q2,O2> &m2, int e2, bool sticky_bit, bool normalize, bool assert_on_rounding=false) {
+    const bool rnd = Q!=AC_TRN & Q!=AC_TRN_ZERO & W2 > W;
+    const bool need_rnd_bit = Q != AC_TRN;
+    const bool need_rem_bits = need_rnd_bit && Q != AC_RND;  
+
+    const int msb_min_power = I-1 + MIN_EXP;  
+    const int msb_min_power2 = I2-1 + min_exp2; 
+    const int msb_min_power_dif = msb_min_power - msb_min_power2;
+    //   if > 0: target has additional negative exponent range
+    //     subnormal maybe be further normalized (done even if normalize==false)
+    //   if < 0: target has less negative exponent range
+    //     mantissa may need to be shifted right
+    //   in either case if source is unnormalized
+    //     normalization could take place
+
+    const int msb_max_power = I-1 + MAX_EXP; 
+    const int msb_max_power2 = I2-1 + max_exp2 + rnd;  
+    const int msb_max_power_dif = msb_max_power - msb_max_power2;
+
+    const bool may_shift_right = msb_min_power_dif > 0; 
+    const int max_right_shift = may_shift_right ? msb_min_power_dif : 0; 
+    const int t_width = W2 + (W >= W2 ? AC_MIN(W-W2+may_shift_right, max_right_shift) : 0); 
+
+    int e_t = e2;
+    e_t += I2-I;
+    typedef ac_fixed<t_width,I2,true,Q2,O2> op2_t;
+    op2_t op2 = m2;
+    int ls = 0;
+    bool r_zero;
+    if(normalize) {
+      bool all_sign;
+      ls = m2.leading_sign(all_sign);
+      r_zero = all_sign & !m2[0];
+    } else if(msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
+      // msb_min_power_dif < 0: src exponent less negative than trg exp represents  
+      //   oportunity to further normalize value in trg representation
+      // msb_max_power_dif < 0: max target exp is less than max src exp
+      //   if un-normalized exp may overflow resulting in incorrect saturation 
+      //     normalization is needed for correctness
+      // W2 > W
+      //   if un-normalized, extra bits may be incorrectly quantized away
+      const int msb_range_dif = AC_MAX(-msb_min_power_dif, -msb_max_power_dif);
+      const int msb_range_dif_norm_w = AC_MIN(msb_range_dif,W2-1);
+      const int extra_bits = AC_MAX(W2-W,0);
+      const int norm_w = AC_MAX(msb_range_dif_norm_w, extra_bits) + 1; 
+      bool all_sign;
+      ls = m2.template slc<norm_w>(W2-norm_w).leading_sign(all_sign);
+      r_zero = all_sign & !m2[W2-1] & !(m2 << norm_w);
+    } else {
+      r_zero = !m2;
+    }
+    int actual_max_shift_left = (1 << (E-1)) + e_t;
+    if(may_shift_right && actual_max_shift_left < 0) {
+      const int shift_r_w = ac::nbits<max_right_shift>::val;
+      ac_int<shift_r_w,false> shift_r = -actual_max_shift_left;
+      if((1 << (E-1)) + min_exp2 + I2-I < 0 && need_rem_bits) {
+        op2_t shifted_out_bits = op2;
+        shifted_out_bits &= ~((~op2_t(0)) << shift_r);
+        sticky_bit |= !!shifted_out_bits;
+      }
+      op2 >>= shift_r;
+      e_t += shift_r;
+    } else {
+      bool shift_exponent_limited = ls >= actual_max_shift_left;
+      int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
+      op2 <<= shift_l;
+      e_t = shift_exponent_limited ? MIN_EXP : e_t - ls;
+    }
+    ac_fixed<t_width+need_rem_bits,I,true> r_pre_rnd = 0;
+    r_pre_rnd.set_slc(need_rem_bits, op2.template slc<t_width>(0));
+    if(need_rem_bits)
+      r_pre_rnd[0] = sticky_bit;
+
+    bool shift_r1 = round(r_pre_rnd);
+    e_t = r_zero ? 0 : e_t + shift_r1;
+    if(!(e_t < 0) & !!(e_t >> E-1)) {
+      e = MAX_EXP;
+      m = m < 0 ? value<AC_VAL_MIN>(m) : value<AC_VAL_MAX>(m);
+    } else {
+      e = e_t;
+    }
+  }
+
+public:
+  template<AC_FL_T(2)>
+  ac_float(const AC_FL(2) &op, bool assert_on_overflow=false, bool assert_on_rounding=false) {
+    typedef AC_FL(2) fl2_t;
+    const int min_exp2 = fl2_t::MIN_EXP;
+    const int max_exp2 = fl2_t::MAX_EXP;
+    assign_from<min_exp2,max_exp2>(op.m, op.e, false, false); 
   }
 
   ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, bool normalize=true) {
     m = m2;
-    if(E) {
-      if(!m)
-        e = 0;
-      else { 
-        e = e2;
-        if(normalize)
-          m.normalize(e);
-      }
-    }
+    e = e2;
+    if(normalize)
+      this->normalize();
+    else
+      e &= ac_int<1,true>(!!m);
   }
 
   template<int WFX, int IFX, bool SFX, int E2>
@@ -315,20 +397,8 @@ public:
   }
 
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
-  ac_float(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &op, bool normalize=true) {
-   enum { 
-      U2S = !SFX,
-      WT2 = WFX+U2S, IT2 = IFX+U2S,
-      RND = QFX!=AC_TRN & QFX!=AC_TRN_ZERO & WT2 > W,
-      I_DIFF = IT2-I,
-      MAX_EXP_T = -(I_DIFF + RND), MIN_EXP_T = AC_MAX(MIN_EXP - I_DIFF, -WT2+1),
-      MAX_EXP_T_P = MAX_EXP_T < 0 ? ~ MAX_EXP_T : MAX_EXP_T,
-      MIN_EXP_T_P = MIN_EXP_T < 0 ? ~ MIN_EXP_T : MIN_EXP_T,
-      WC_EXP_T = AC_MAX(MAX_EXP_T_P, MIN_EXP_T_P),
-      ET = ac::template nbits<WC_EXP_T>::val + 1
-    };
-    ac_float<WT2,IT2,ET>  f(op, ac_int<ET,true>(0), normalize);
-    *this = f; 
+  ac_float(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &op) {
+    assign_from<0,0>(ac_fixed<WFX+!SFX,IFX+!SFX,true>(op), 0, false, true);
   }
 
   template<int WI, bool SI>
@@ -372,42 +442,15 @@ public:
   const ac_fixed<W,I,S> mantissa() const { return m; }
   const ac_int<E,true> exp() const { return e; }
   bool normalize() {
-    bool normalized = operator !() || !S && m[W-1] || S && (m[W-1] ^ m[W-2]);
-    if(E && !normalized)
-      normalized = m.normalize(e);
-    return normalized;
-  }
-
-  template <int ET>
-  void adjust(ac_int<ET,true> new_e, bool normalize, bool assert_on_overflow) {
-    if(E >= ET) {
-      e = new_e;
-      if(E && normalize)
-        m.normalize(e);
-    } else {
-      ac_int<E,false> offset = 0;
-      offset[E-1] = 1;
-      ac_int<ET+1,true> e_s = new_e + offset; 
-      if(e_s < 0) {
-        m >>= (MIN_EXP - new_e);   // can a full barrel-shifter be avoided ???
-        e = MIN_EXP;
-      } else {
-        // break down:  bits( (1<<E) -1 + W-1 ) + 1 is max bit for normalization
-        // other bits can be tested separetely
-        ac_int<ET,false> e_u = e_s;
-        if(ET && normalize)
-          m.normalize(e_u);
-        e_u -= offset;
-        if(e_u[ET-1] | !(e_u >> (E-1)))   // what about E == 0 or ET == 0 ???
-          e = e_u;
-        else {
-          e = MAX_EXP;
-          m = m < 0 ? value<AC_VAL_MIN>(m) : value<AC_VAL_MAX>(m);
-          if(assert_on_overflow)
-            AC_ASSERT(0, "OVERFLOW ON ASSIGNMENT TO AC_FLOAT");
-        }
-      }
-    }
+    bool all_sign;
+    int ls = m.leading_sign(all_sign);
+    bool m_zero = all_sign & !m[0];
+    const int max_shift_left = (1 << (E-1)) + e; 
+    bool normal = ls <= max_shift_left;
+    int shift_l = normal ? ls : max_shift_left; 
+    m <<= shift_l;
+    e = ac_int<1,true>(!m_zero) & (e - shift_l);
+    return normal;
   }
 
   ac_float( double d, bool assert_on_overflow=false, bool assert_on_rounding=false ) {
@@ -422,12 +465,6 @@ public:
     ac_private::ac_float_cfloat_t t = ac_private::float_to_ac_float(f);
     ac_float r(t, assert_on_overflow, assert_on_rounding);
     *this = r;
-  }
-
-  template<AC_FL_T(2)>
-  typename rt< AC_FL_TV0(2) >::mult operator *(const AC_FL(2) &op2) const {
-    typename rt< AC_FL_TV0(2) >::mult r(m*op2.m, exp()+op2.exp(), false);
-    return r;
   }
 
   template<AC_FL_T(2)>
@@ -453,74 +490,115 @@ public:
     return eq; 
   }
 
-
   template<AC_FL_T(2), AC_FL_T(R)>
   void plus_minus(const AC_FL(2) &op2, AC_FL(R) &r, bool sub=false) const {
-    typedef AC_FL(R) r_type;
+    typedef AC_FL(2) op2_t;
     enum { IT = AC_MAX(I,I2) };
-    typedef ac_fixed<W, IT, S> fx1_t;
-    typedef ac_fixed<W2, IT, S2> fx2_t;
-    typedef typename fx1_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx1t_t; 
-    typedef typename fx2_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx2t_t; 
-    typedef typename fx1t_t::template rt_T<fx2t_t>::plus mt_t; 
-    typedef ac_fixed<mt_t::width+1,mt_t::i_width,SR> t1_t;
-    typedef ac_fixed<mt_t::width+2,mt_t::i_width,SR> t2_t;
-    typedef ac_fixed<t2_t::width,IR,SR> r1_t;
+    typedef ac_fixed<W, IT, true> fx1_t;
+    typedef ac_fixed<W2, IT, true> fx2_t;
+    // covers fx1_t and r mantissas (adds additional LSBs if WR > W)
+    typedef typename fx1_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx1r_t; 
+    // covers fx2_t and r mantissas (adds additional LSBs if WR > W2)
+    typedef typename fx2_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx2r_t; 
+    // mt_t adds one integer bit for the plus 
+    //  op1_m, op2_m, op_sl, sticky_bits
+    typedef typename fx1r_t::template rt_T<fx2r_t>::plus mt_t; 
 
-    enum { MAX_EXP2 = AC_FL(2)::MAX_EXP, MIN_EXP2 = AC_FL(2)::MIN_EXP, 
-          I_DIFF = mt_t::i_width - IR,
-          MAX_EXP_T = AC_MAX(MAX_EXP, MAX_EXP2) + I_DIFF, 
-          MIN_EXP_T = AC_MIN(MIN_EXP, MIN_EXP2) + I_DIFF,
-          MAX_EXP_T_P = MAX_EXP_T < 0 ? ~ MAX_EXP_T : MAX_EXP_T,
-          MIN_EXP_T_P = MIN_EXP_T < 0 ? ~ MIN_EXP_T : MIN_EXP_T,
-          WC_EXP_T = AC_MAX(MAX_EXP_T_P, MIN_EXP_T_P),
-          ET = ac::template nbits<WC_EXP_T>::val + 1 };
+    const bool round_bit_needed = QR != AC_TRN;
+    const bool remaining_bits_needed = !(QR == AC_TRN || QR == AC_RND);
+
+    const int w_r_with_round_bits = WR + round_bit_needed;
+
+    // naming: sn = subnormal, n = normal, wc = worst case
+    // worst case (wc) normalize is when one operand has smallest subnormal
+    //   and other operand is shifted right so that its MSB lines up with LSB of subnormal
+    const int power_smallest_sn1 = I - W - (1 << (E-1));
+    const int power_smallest_sn2 = I2 - W2 - (1 << (E2-1));
+    const int power_smallest_sn_dif1 = AC_MAX(0,power_smallest_sn2 - power_smallest_sn1);
+    const int power_smallest_sn_dif2 = AC_MAX(0,power_smallest_sn1 - power_smallest_sn2);
+    const int wc_norm_shift1 = W2-1 + AC_MIN(power_smallest_sn_dif1, W-1); 
+    const int wc_norm_shift2 = W-1 + AC_MIN(power_smallest_sn_dif2, W2-1); 
+    const int wc_sn_norm_shift = AC_MAX(wc_norm_shift1, wc_norm_shift2);
+    const int w_sn_overlap = wc_sn_norm_shift + 1;
+
+    // cases when one operand is subnormal and other is shifted right and does not overlap bits
+    //   subnormal op could be normalized by width-1 bits
+    const int w_sn_no_overlap1 = W + AC_MIN(w_r_with_round_bits, power_smallest_sn_dif2); 
+    const int w_sn_no_overlap2 = W2 + AC_MIN(w_r_with_round_bits, power_smallest_sn_dif1);
+    const int w_sn_no_overlap = AC_MAX(w_sn_no_overlap1, w_sn_no_overlap2);
+
+    const int w_sn = AC_MAX(w_sn_overlap, w_sn_no_overlap);
+
+    // For example 0100 + (1000 0001 >> 1) = 0000 0000 1,  wc_n_norm_shift = max(4,8) 
+    const int msb0h1 = I-1 + (int) MAX_EXP;
+    const int msb1h1 = msb0h1-1;
+    const int msb0l1 = I-1 + (int) MIN_EXP;
+    const int msb1l1 = msb0h1-1;
+    const int msb0h2 = I2-1 + (int) op2_t::MAX_EXP;
+    const int msb1h2 = msb0h2-1;
+    const int msb0l2 = I2-1 + (int) op2_t::MIN_EXP;
+    const int msb1l2 = msb0h2-1;
+    // bit W-1 overlap with bit W2-2
+    const bool msb_overlap1 = msb1h2 >= msb0h1 && msb0h1 <= msb1l2 
+      || msb1h2 >= msb0l1 && msb0l1 <= msb1l2
+      || msb0h1 >= msb1h2 && msb1h2 >= msb0l1;
+    // bit W2-1 overlap with bit W1-2
+    const bool msb_overlap2 = msb1h1 >= msb0h2 && msb0h2 <= msb1l1 
+      || msb1h1 >= msb0l2 && msb0l2 <= msb1l1
+      || msb0h2 >= msb1h1 && msb1h1 >= msb0l2;
+    const bool msb_overlap = msb_overlap1 || msb_overlap2;
+    const int wc_n_norm_shift = AC_MAX(W,W2);
+    const int w_n_msb_overlap = msb_overlap ? wc_n_norm_shift + 1 : 0;
+    // addition of two numbers of different sign can result in a normalization by 1 (therefore + 1)
+    const int w_n_no_msb_overlap = w_r_with_round_bits + 1;
+    const int w_n = AC_MAX(w_n_msb_overlap, w_n_no_msb_overlap);
+    
+    // +1 is to prevent overflow during addition
+    const int tr_t_width = AC_MAX(w_n, w_sn) + 1; 
+    typedef ac_fixed<tr_t_width,IT+1,true> add_t;
+
+    const int min_E = (int) MIN_EXP + I-IT;
+    const int min_E2 = (int) AC_FL(2)::MIN_EXP + I2-IT;
+    const int min_ET = AC_MIN(min_E, min_E2);
+
+    const int max_E = (int) MAX_EXP + I-IT;
+    const int max_E2 = (int) AC_FL(2)::MAX_EXP + I2-IT;
+    const int max_ET = AC_MAX(max_E, max_E2);
  
     ac_fixed<mt_t::width, I+1, mt_t::sign> op1_m_0 = m;
     mt_t op1_m = 0;
     op1_m.set_slc(0, op1_m_0.template slc<mt_t::width>(0));
-    int op1_e = exp() + I-IT + (SR&!S);
+    int op1_e = exp() + I-IT;
 
     ac_fixed<mt_t::width, I2+1, mt_t::sign> op2_m_0 = op2.m;
     mt_t op2_m = 0;
     op2_m.set_slc(0, op2_m_0.template slc<mt_t::width>(0));
     if(sub)
       op2_m = -op2_m;
-    int op2_e = op2.exp() + I2-IT + (SR&!S2);
+    int op2_e = op2.exp() + I2-IT;
 
     bool op1_zero = operator !();
     bool op2_zero = !op2;
     int e_dif = op1_e - op2_e;
     bool e1_lt_e2 = e_dif < 0;
     e_dif = (op1_zero | op2_zero) ? 0 : e1_lt_e2 ? -e_dif : e_dif;
-    mt_t op_sl = e1_lt_e2 ? op1_m : op2_m;
-    // Sticky bits are bits shifted out, leaving out the MSB
-    mt_t sticky_bits = op_sl;
-    sticky_bits &= ~((~t1_t(0)) << e_dif);
-    bool sticky_bit = !!sticky_bits;
-    bool msb_shifted_out = (bool) t1_t(op_sl).template slc<1>(e_dif);
-    op_sl >>= e_dif;
-    op1_m = e1_lt_e2 ? op_sl : op1_m; 
-    op2_m = e1_lt_e2 ? op2_m : op_sl; 
+    
+    add_t op_lshift = e1_lt_e2 ? op1_m : op2_m;
+    mt_t op_no_shift = e1_lt_e2 ? op2_m : op1_m; 
 
-    t1_t t1 = op1_m;
-    t1 += op2_m;
-    t1[0] = msb_shifted_out;
+    bool sticky_bit = false;
+    if(remaining_bits_needed) {
+      mt_t shifted_out_bits = op_lshift;
+      // bits that are shifted out of a add_t (does not include potential 3 spare bits)
+      shifted_out_bits &= ~((~add_t(0)) << e_dif);
+      sticky_bit = !!shifted_out_bits;
+    }
+    op_lshift >>= e_dif;
 
-    bool shift_r_1 = false; //t1[t1_t::width-1] != t1[t1_t::width-2]; 
-    sticky_bit |= shift_r_1 & t1[0];
-    t1 >>= shift_r_1;
-    t2_t t2 = t1;
-    t2[0] = sticky_bit;
-    r1_t r1;
-    r1.set_slc(0, t2.template slc<t2_t::width>(0));
-    r_type r_t; 
-    r_t.m = (ac_fixed<WR,IR,SR,QR>) r1; // t2;  This could overflow if !SR&ST
-    ac_int<ET,true> r_e = op1_zero ? op2_e : (op2_zero ? op1_e : AC_MAX(op1_e, op2_e));
-    r_e = ac_int<1,true>(!op1_zero | !op2_zero) & (r_e + shift_r_1 + I_DIFF); 
-    r_t.adjust(r_e, true, false);
-    r.m = r_t.m;
-    r.e = r_t.e;
+    add_t add_r = op_lshift + op_no_shift;
+    int e_t = (e1_lt_e2 & !op2_zero | op1_zero ? op2_e : op1_e);
+
+    r.template assign_from<min_ET,max_ET>(add_r, e_t, sticky_bit, true);
   }
 
   template<AC_FL_T(1), AC_FL_T(2)>
@@ -558,6 +636,13 @@ public:
     return r;
   } 
 #endif
+
+  template<AC_FL_T(2)>
+  typename rt< AC_FL_TV0(2) >::mult operator *(const AC_FL(2) &op2) const {
+    typedef typename rt< AC_FL_TV0(2) >::mult r_t;
+    r_t r(m*op2.m, exp()+op2.exp(), false);
+    return r;
+  }
 
   template<AC_FL_T(2)>
   typename rt< AC_FL_TV0(2) >::div operator /(const AC_FL(2) &op2) const {
@@ -1080,6 +1165,9 @@ namespace ac {
 
 #if (defined(_MSC_VER) && !defined(__EDG__))
 #pragma warning( pop )
+#endif
+#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#pragma GCC diagnostic pop 
 #endif
 #if defined(__clang__)
 #pragma clang diagnostic pop 

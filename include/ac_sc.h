@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.7                                                 *
+ *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
+ *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.2                                               *
+ *  Release Build   : 3.9.0                                               *
  *                                                                        *
- *  Copyright 2004-2016, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2018, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -317,88 +317,83 @@ namespace ac {
 // SystemC Versions - 2.2.0 20070314
 //                    2.3.0 20120701
 //                    2.3.1 20140417
+//                    2.3.2 20171012
 
-#if (SYSTEMC_VERSION <= 20140417) && !defined(NCSC)
-
-#if (SYSTEMC_VERSION > 20120701)
-#include <sysc/tracing/sc_vcd_trace.h>
+#if (SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
+namespace sc_core {
+class vcd_trace;
+class sc_trace_file_base
+  : public sc_trace_file
+{
+public:
+    enum vcd_enum {VCD_WIRE=0, VCD_REAL, VCD_EVENT, VCD_TIME, VCD_LAST};
+    virtual void do_initialize() = 0;
+    FILE* fp;
+#if (SYSTEMC_VERSION >= 20171012)
+    sc_time::value_type trace_unit_fs, kernel_unit_fs;
+#else
+    double timescale_unit;
+#endif
+    bool        timescale_set_by_user;
+    std::string filename_;
+    bool        initialized_;
+    bool        trace_delta_cycles_;
+    virtual ~sc_trace_file_base();
+};
+class vcd_trace_file
+  : public sc_trace_file_base
+{
+public:
+    ~vcd_trace_file();
+    std::string obtain_name();
+    virtual void do_initialize();
+    unsigned vcd_name_index;
+#if (SYSTEMC_VERSION >= 20171012)
+    sc_time::value_type previous_time_units_low, previous_time_units_high;
+#else
+    unsigned previous_time_units_low, previous_time_units_high;
+#endif
+    std::vector<vcd_trace*> traces;
+};
+}
 #endif
 
+namespace sc_core {
 //==============================================================================
 // The following block of code is copied from the file sc_vcd_trace.cpp in the
-// SystemC 2.2.0 distribution. This code should have been placed in the file
+// SystemC distribution. This code should have been placed in the file
 // sc_vcd_trace.h to allow proper C++ derivation. 
-namespace sc_core {
 class vcd_trace
 {
 public:
-
     vcd_trace(const std::string& name_, const std::string& vcd_name_);
-
-    // Needs to be pure virtual as has to be defined by the particular
-    // type being traced
     virtual void write(FILE* f) = 0;
-    
     virtual void set_width();
-
-    static const char* strip_leading_bits(const char* originalbuf);
-
-    // Comparison function needs to be pure virtual too
     virtual bool changed() = 0;
-
-    // Make this virtual as some derived classes may overwrite
+#if (SYSTEMC_VERSION >= 20171012)
+    virtual void print_variable_declaration_line(FILE* f, const char* scoped_name);
+#else
     virtual void print_variable_declaration_line(FILE* f);
-
+#endif
     void compose_data_line(char* rawdata, char* compdata);
 
-#if (SYSTEMC_VERSION > 20120701)
+#if (SYSTEMC_VERSION >= 20140417)
     std::string compose_line(const std::string& data);
 #else
     std::string compose_line(const std::string data);
 #endif
-
     virtual ~vcd_trace();
-
     const std::string name;
     const std::string vcd_name;
+#if (SYSTEMC_VERSION >= 20171012)
+    vcd_trace_file::vcd_enum vcd_var_type;
+#else
     const char* vcd_var_typ_name;
+#endif
     int bit_width; 
 };
 }
-static
-void
-remove_vcd_name_problems(std::string& name)
-{
-    using namespace sc_core;
-    char message[4000];
-    static bool warned = false;
-
-    bool braces_removed = false;
-    for (unsigned int i = 0; i< name.length(); i++) {
-      if (name[i] == '[') {
-        name[i] = '(';
-        braces_removed = true;
-      }
-      else if (name[i] == ']') {
-        name[i] = ')';
-        braces_removed = true;
-      }
-    }
-
-    if(braces_removed && !warned){
-        std::sprintf(message,
-                "Traced objects found with name containing [], which may be\n"
-                "interpreted by the waveform viewer in unexpected ways.\n"
-                "So the [] is automatically replaced by ().");
-#if (SYSTEMC_VERSION <= 20120701)
-        put_error_message(message, true);
-#endif
-        warned = true;
-    }
-}
-//==============================================================================
-#endif
-
+   
 #ifdef __AC_NAMESPACE
 namespace __AC_NAMESPACE {
 #endif
@@ -414,18 +409,12 @@ public:
   vcd_ac_int_trace(const ac_int<W,S> &object_, const std::string& name_, const std::string& vcd_name_) :
     vcd_trace(name_, vcd_name_), object(object_)
   {
+#if (SYSTEMC_VERSION >= 20171012)
+    vcd_var_type = vcd_trace_file::VCD_WIRE; 
+#else
     vcd_var_typ_name = "wire"; // SystemC does not expose vcd_types[] in sc_vcd_trace.h
-    bit_width = W; // bit_width defined in base class 'vcd_trace'
-  }
-
-  virtual void print_variable_declaration_line(FILE* f) {
-    char buf[2000];
-    std::string namecopy = name;
-#if !defined(NCSC)
-    remove_vcd_name_problems(namecopy);
 #endif
-    std::sprintf(buf, "$var %s  % 3d  %s  %s [%d:0]  $end\n", vcd_var_typ_name,bit_width,vcd_name.c_str(),namecopy.c_str(),bit_width-1);
-    std::fputs(buf, f);
+    bit_width = W; // bit_width defined in base class 'vcd_trace'
   }
 
   virtual void write(FILE* f) { 
@@ -451,14 +440,6 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_int<W,S> &a, const std
 {
   using namespace sc_core;
   if (tf) {
-    //--- SystemC 2.2.0 deficiency. The 'initialized' class member of sc_trace_file is
-    // declared as 'protected' and does not have a public access 'get_initialized()' method.
-    // Therefore, we cannot check for initialized so the following code is commented out.
-    //if( tf->initialized ) {
-    //    put_error_message(
-    //   "No traces can be added once simulation has started.\n"
-    //        "To add traces, create a new vcd trace file.", false );
-    //}
     vcd_trace *t = (vcd_trace*) new vcd_ac_int_trace<W,S>(a,name,((vcd_trace_file*)tf)->obtain_name());
     ((vcd_trace_file*)tf)->traces.push_back(t);
   }
@@ -470,64 +451,12 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_int<W,S> &a, const std
 // this code is not used. The stub should be removed in a future release of the simulator.
 #if defined(__AC_FIXED_H) && !defined(SC_TRACE_AC_FIXED)
 #define SC_TRACE_AC_FIXED
-
 //==============================================================================
 // TRACING SUPPORT FOR AC_FIXED
 template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
-class vcd_ac_fixed_trace : public sc_core::vcd_trace
-{
-public:
-  vcd_ac_fixed_trace(const ac_fixed<W,I,S,Q,O> &object_, const std::string& name_, const std::string& vcd_name_) :
-    vcd_trace(name_, vcd_name_), object(object_)
-  {
-    vcd_var_typ_name = "wire"; // SystemC does not expose vcd_types[] in sc_vcd_trace.h
-    bit_width = W; // bit_width defined in base class 'vcd_trace'
-  }
-
-  virtual void print_variable_declaration_line(FILE* f) {
-    char buf[2000];
-    std::string namecopy = name;
-#if !defined(NCSC)
-    remove_vcd_name_problems(namecopy);
-#endif
-    std::sprintf(buf, "$var %s  % 3d  %s  %s [%d:0]  $end\n", vcd_var_typ_name,bit_width,vcd_name.c_str(),namecopy.c_str(),bit_width-1);
-    std::fputs(buf, f);
-  }
-
-  virtual void write(FILE* f) { 
-    // The function to_string(AC_BIN) returns a string with the zero-radix prefix (i.e. "0b").
-    // Strip that prefix off because compose_line will add its own.
-    std::fprintf(f, "%s", compose_line(((ac_fixed<W,I,false>)object).to_string(AC_BIN,true).substr(3)).c_str());
-    old_value = object;
-  }
-
-  virtual void set_width() { bit_width = W; }
-
-  // Comparison function needs to be pure virtual too
-  virtual bool changed() { return !(object == old_value); }
-
-  virtual ~vcd_ac_fixed_trace() {}
-protected:
-  const ac_fixed<W,I,S,Q,O> &object;
-  ac_fixed<W,I,S,Q,O>        old_value;
-};
-
-template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
 inline void sc_trace(sc_core::sc_trace_file *tf, const ac_fixed<W,I,S,Q,O> &a, const std::string &name)
 {
-  using namespace sc_core;
-  if (tf) {
-    //--- SystemC 2.2.0 deficiency. The 'initialized' class member of sc_trace_file is
-    // declared as 'protected' and does not have a public access 'get_initialized()' method.
-    // Therefore, we cannot check for initialized so the following code is commented out.
-    //if( tf->initialized ) {
-    //    put_error_message(
-    //   "No traces can be added once simulation has started.\n"
-    //        "To add traces, create a new vcd trace file.", false );
-    //}
-    vcd_trace *t = (vcd_trace*) new vcd_ac_fixed_trace<W,I,S,Q,O>(a,name,((vcd_trace_file*)tf)->obtain_name());
-    ((vcd_trace_file*)tf)->traces.push_back(t);
-  }
+  sc_trace(tf, *(const ac_int<W,S>*) &a, name);
 }
 //==============================================================================
 #endif
@@ -535,70 +464,21 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_fixed<W,I,S,Q,O> &a, c
 
 #if defined(__AC_FLOAT_H) && !defined(SC_TRACE_AC_FLOAT)
 #define SC_TRACE_AC_FLOAT
-
 //==============================================================================
 // TRACING SUPPORT FOR AC_FLOAT
 template<int W, int I, int E, ac_q_mode Q>
-class vcd_ac_float_trace : public sc_core::vcd_trace
-{
-public:
-  vcd_ac_float_trace(const ac_float<W,I,E,Q> &object_, const std::string& name_, const std::string& vcd_name_) :
-    vcd_trace(name_, vcd_name_), object(object_)
-  {
-    vcd_var_typ_name = "wire"; // SystemC does not expose vcd_types[] in sc_vcd_trace.h
-    bit_width = W; // bit_width defined in base class 'vcd_trace'
-  }
-
-  virtual void print_variable_declaration_line(FILE* f) {
-    char buf[2000];
-    std::string namecopy = name;
-#if !defined(NCSC)
-    remove_vcd_name_problems(namecopy);
-#endif
-    std::sprintf(buf, "$var %s  % 3d  %s  %s [%d:0]  $end\n", vcd_var_typ_name,bit_width,vcd_name.c_str(),namecopy.c_str(),bit_width-1);
-    std::fputs(buf, f);
-  }
-
-  virtual void write(FILE* f) {
-    // The function to_string(AC_BIN) returns a string with the zero-radix prefix (i.e. "0b").
-    // Strip that prefix off because compose_line will add its own.
-    std::fprintf(f, "%s", compose_line(object.to_string(AC_BIN).substr(2)).c_str());
-    old_value = object;
-  }
-
-  virtual void set_width() { bit_width = W; }
-
-  // Comparison function needs to be pure virtual too
-  virtual bool changed() { return !(object == old_value); }
-
-  virtual ~vcd_ac_float_trace() {}
-protected:
-  const ac_float<W,I,E,Q> &object;
-  ac_float<W,I,E,Q>        old_value;
-};
-
-template<int W, int I, int E, ac_q_mode Q>
 inline void sc_trace(sc_core::sc_trace_file *tf, const ac_float<W,I,E,Q> &a, const std::string &name)
 {
-  using namespace sc_core;
-  if (tf) {
-    //--- SystemC 2.2.0 deficiency. The 'initialized' class member of sc_trace_file is
-    // declared as 'protected' and does not have a public access 'get_initialized()' method.
-    // Therefore, we cannot check for initialized so the following code is commented out.
-    //if( tf->initialized ) {
-    //    put_error_message(
-    //   "No traces can be added once simulation has started.\n"
-    //        "To add traces, create a new vcd trace file.", false );
-    //}
-    vcd_trace *t = (vcd_trace*) new vcd_ac_float_trace<W,I,E,Q>(a,name,((vcd_trace_file*)tf)->obtain_name());
-    ((vcd_trace_file*)tf)->traces.push_back(t);
-  }
+  sc_trace(tf, a.m, name + ".m");
+  sc_trace(tf, a.e, name + ".e");
 }
 //==============================================================================
 #endif
 
 #if defined(__AC_COMPLEX_H) && !defined(SC_TRACE_AC_COMPLEX)
 #define SC_TRACE_AC_COMPLEX
+//==============================================================================
+// TRACING SUPPORT FOR AC_COMPLEX
 template<typename T>
 inline void sc_trace(sc_core::sc_trace_file *tf, const ac_complex<T> &a, const std::string &name)
 {

@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.7                                                 *
+ *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Tue May 30 14:25:58 PDT 2017                        *
+ *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.7.2                                               *
+ *  Release Build   : 3.9.0                                               *
  *                                                                        *
- *  Copyright 2004-2017, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2018, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 3
-#define AC_VERSION_MINOR 7
+#define AC_VERSION_MINOR 9
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
@@ -96,9 +96,13 @@
 #error DO NOT use defines before including third party header files.
 #endif
 
-#if (defined(true) || defined(false))
-#error One or more of the following is defined: true, false. They are keywords in C++ of type bool. Defining them as 1 and 0, may result in subtle compilation problems. 
-#error DO NOT use defines before including third party header files.
+#if defined(true)
+#warning The C++ keyword true is defined which may result in subtle compilation problems. Undefining it. 
+#undef true
+#endif
+#if defined(false)
+#warning The C++ keyword false is defined which may result in subtle compilation problems. Undefining it. 
+#undef false 
 #endif
 
 #ifndef __ASSERT_H__
@@ -127,7 +131,7 @@ namespace __AC_NAMESPACE {
 
 #define AC_MAX(a,b) ((a) > (b) ? (a) : (b))
 #define AC_MIN(a,b) ((a) < (b) ? (a) : (b))
-#define AC_ABS(a) ((a) < 0 ? (-a) : (a))
+#define AC_ABS(a) ((a) < 0 ? -(a) : (a))
 
 #if defined(_MSC_VER)
 typedef unsigned __int64 Ulong;
@@ -1948,6 +1952,7 @@ public:
 #endif
   template<ac_special_val V>
   inline ac_int &set_val() {
+    const unsigned int all_ones = (unsigned) ~0;
     if(V == AC_VAL_DC) {
       ac_int r;
       Base::operator =(r); 
@@ -1957,14 +1962,14 @@ public:
       Base::operator =(0); 
       if(S && V == AC_VAL_MIN) {
         const unsigned int rem = (W-1)&31;
-        Base::v[N-1] = (-1 << rem); 
+        Base::v[N-1] = (all_ones << rem); 
       } else if(V == AC_VAL_QUANTUM)
         Base::v[0] = 1;
     }
     else if(AC_VAL_MAX) {
       Base::operator =(-1); 
-      const unsigned int rem = (32-W - (unsigned) !S )&31;
-      Base::v[N-1] = ((unsigned) (-1) >> 1) >> rem; 
+      const unsigned int rem = (32-W - !S )&31;
+      Base::v[N-1] = (all_ones >> 1) >> rem; 
     }
     return *this;
   } 
@@ -2309,9 +2314,9 @@ public:
   template<int WS, int WX, bool SX>
   inline ac_int<WS,S> slc(const ac_int<WX,SX> &index) const {
     ac_int<WS,S> r;
-    AC_ASSERT(index >= 0, "Attempting to read slc with negative indeces");
-    ac_int<WX-SX, false> uindex = index;
-    Base::shift_r(uindex.to_uint(), r);
+    AC_ASSERT(index.to_int() >= 0, "Attempting to read slc with negative indeces");
+    unsigned uindex = ac_int<WX-SX, false>(index).to_uint();
+    Base::shift_r(uindex, r);
     r.bit_adjust();
     return r; 
   }
@@ -2336,8 +2341,8 @@ public:
   template<int W2, bool S2, int WX, bool SX>
   inline ac_int &set_slc(const ac_int<WX,SX> lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb.to_int() + W2 <= W && lsb.to_int() >= 0, "Out of bounds set_slc");
-    ac_int<WX-SX, false> ulsb = lsb;
-    Base::set_slc(ulsb.to_uint(), W2, (ac_int<W2,true>) slc);
+    unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
+    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
@@ -2395,17 +2400,17 @@ public:
   } 
   ac_bitref operator [] ( int index) {
     AC_ASSERT(index >= 0, "Attempting to read bit with negative index");
-    AC_ASSERT(index < W, "Attempting to read bit beyond MSB");
     unsigned uindex = index & ((unsigned)~0 >> 1);
+    AC_ASSERT(uindex < W, "Attempting to read bit beyond MSB");
     ac_bitref bvh( this, uindex );
     return bvh;
   } 
   template<int W2, bool S2>
   ac_bitref operator [] ( const ac_int<W2,S2> &index) {
-    AC_ASSERT(index >= 0, "Attempting to read bit with negative index");
-    AC_ASSERT(index < W, "Attempting to read bit beyond MSB");
-    ac_int<W2-S2,false> uindex = index;
-    ac_bitref bvh( this, uindex.to_uint() );
+    AC_ASSERT(index.to_int() >= 0, "Attempting to read bit with negative index");
+    unsigned uindex = ac_int<W2-S2,false>(index).to_uint();
+    AC_ASSERT(uindex < W, "Attempting to read bit beyond MSB");
+    ac_bitref bvh( this, uindex );
     return bvh;
   } 
   bool operator [] ( unsigned int uindex) const {
@@ -2414,22 +2419,17 @@ public:
   } 
   bool operator [] ( int index) const {
     AC_ASSERT(index >= 0, "Attempting to read bit with negative index");
-    AC_ASSERT(index < W, "Attempting to read bit beyond MSB");
     unsigned uindex = index & ((unsigned)~0 >> 1);
+    AC_ASSERT(uindex < W, "Attempting to read bit beyond MSB");
     return (uindex < W) ? (Base::v[uindex>>5]>>(uindex&31) & 1) : 0;
   }
   template<int W2, bool S2>
   bool operator [] ( const ac_int<W2,S2> &index) const {
-    AC_ASSERT(index >= 0, "Attempting to read bit with negative index");
-    AC_ASSERT(index < W, "Attempting to read bit beyond MSB");
-    ac_int<W2-S2,false> uindex = index;
-    return (uindex < W) ? (Base::v[uindex>>5]>>(uindex.to_uint()&31) & 1) : 0;
+    AC_ASSERT(index.to_int() >= 0, "Attempting to read bit with negative index");
+    unsigned uindex = ac_int<W2-S2,false>(index).to_uint();
+    AC_ASSERT(uindex < W, "Attempting to read bit beyond MSB");
+    return (uindex < W) ? (Base::v[uindex>>5]>>(uindex&31) & 1) : 0;
   }
-#if 0
-  unsigned int leading_bits(bool bit) const {
-    return Base::leading_bits(bit) - (32*N - W); 
-  }
-#endif
   typename rt_unary::leading_sign leading_sign() const {
     unsigned ls = Base::leading_bits(S & (Base::v[N-1] < 0)) - (32*N - W)-S; 
     return ls;
@@ -2643,7 +2643,13 @@ template<> inline ac_int<64,false>::ac_int( Ulong b ) { v[0] = (int) b; v[1] = (
 template<int W, bool S>
 inline std::ostream& operator << (std::ostream &os, const ac_int<W,S> &x) {
 #ifndef __SYNTHESIS__
-  os << x.to_string(AC_DEC);
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.to_string(AC_HEX);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.to_string(AC_OCT);
+  } else {
+    os << x.to_string(AC_DEC);
+  }
 #endif
   return os;
 }
