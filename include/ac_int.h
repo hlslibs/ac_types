@@ -2484,7 +2484,7 @@ public:
     // Zero Pads if str is too short, throws ms bits away if str is too long
     // Asserts if anything other than 0-9a-fA-F is encountered
     ac_int<W,S> res = 0;
-    while(str) {
+    while(*str) {
       char c = *str;
       int h = 0;
       if(c >= '0' && c <= '9')
