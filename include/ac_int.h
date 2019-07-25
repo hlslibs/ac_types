@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
- *  Copyright 2004-2018, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -1755,20 +1755,20 @@ namespace ac {
   struct nbits {
     enum { val = ac_private::s_N<16>::s_X<X>::nbits };
   };
-                                                                                                                     
+
   template<unsigned X>
   struct log2_floor {
     enum { val = nbits<X>::val - 1 };
   };
-                                                                                                                     
+
   // log2 of 0 is not defined: generate compiler error
   template<> struct log2_floor<0> {};
-                                                                                                                     
+
   template<unsigned X>
   struct log2_ceil {
     enum { lf = log2_floor<X>::val, val = (X == (1 << lf) ? lf : lf+1) };
   };
-                                                                                                                     
+         
   // log2 of 0 is not defined: generate compiler error
   template<> struct log2_ceil<0> {};
 
@@ -2341,23 +2341,34 @@ public:
   template<int W2, bool S2, int WX, bool SX>
   inline ac_int &set_slc(const ac_int<WX,SX> lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb.to_int() + W2 <= W && lsb.to_int() >= 0, "Out of bounds set_slc");
-    unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else {
+      unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    }
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
   template<int W2, bool S2>
   inline ac_int &set_slc(signed lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb + W2 <= W && lsb >= 0, "Out of bounds set_slc");
-    unsigned ulsb = lsb & ((unsigned)~0 >> 1);
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else {
+      unsigned ulsb = lsb & ((unsigned)~0 >> 1);
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    }
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
   template<int W2, bool S2>
   inline ac_int &set_slc(unsigned ulsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(ulsb + W2 <= W, "Out of bounds set_slc");
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
@@ -2484,7 +2495,7 @@ public:
     // Zero Pads if str is too short, throws ms bits away if str is too long
     // Asserts if anything other than 0-9a-fA-F is encountered
     ac_int<W,S> res = 0;
-    while(str) {
+    while(*str) {
       char c = *str;
       int h = 0;
       if(c >= '0' && c <= '9')
@@ -2497,8 +2508,8 @@ public:
         AC_ASSERT(!c, "Invalid hex digit");
         break;
       }
-      res <<= 4;
-      res |= h;
+      res <<= ac_int<3,false>(4);
+      res |= ac_int<4,false>(h);
       str++;
     }
     *this = res;
@@ -2714,24 +2725,32 @@ inline std::ostream& operator << (std::ostream &os, const ac_int<W,S> &x) {
 
 // ------------------------------------- End of Macros for Binary Operators with Integers 
 
+// for backward compatability with v3.9.0 and earlier define following macro 
+#ifdef AC_INT_NS_FOR_MIXED_OPERATORS
 namespace ac {
   namespace ops_with_other_types {
-    //  Mixed Operators with Integers  -----------------------------------------------
-    OPS_WITH_INT(bool, 1, false)
-    OPS_WITH_INT(char, 8, true)
-    OPS_WITH_INT(signed char, 8, true)
-    OPS_WITH_INT(unsigned char, 8, false)
-    OPS_WITH_INT(short, 16, true)
-    OPS_WITH_INT(unsigned short, 16, false)
-    OPS_WITH_INT(int, 32, true)
-    OPS_WITH_INT(unsigned int, 32, false)
-    OPS_WITH_INT(long, ac_private::long_w, true)
-    OPS_WITH_INT(unsigned long, ac_private::long_w, false)
-    OPS_WITH_INT(Slong, 64, true)
-    OPS_WITH_INT(Ulong, 64, false)
-    // -----------------------------------------  End of Mixed Operators with Integers
+#endif
+//  Mixed Operators with Integers  -----------------------------------------------
+OPS_WITH_INT(bool, 1, false)
+OPS_WITH_INT(char, 8, true)
+OPS_WITH_INT(signed char, 8, true)
+OPS_WITH_INT(unsigned char, 8, false)
+OPS_WITH_INT(short, 16, true)
+OPS_WITH_INT(unsigned short, 16, false)
+OPS_WITH_INT(int, 32, true)
+OPS_WITH_INT(unsigned int, 32, false)
+OPS_WITH_INT(long, ac_private::long_w, true)
+OPS_WITH_INT(unsigned long, ac_private::long_w, false)
+OPS_WITH_INT(Slong, 64, true)
+OPS_WITH_INT(Ulong, 64, false)
+// -----------------------------------------  End of Mixed Operators with Integers
+#ifdef AC_INT_NS_FOR_MIXED_OPERATORS
   }  // ops_with_other_types namespace
+}
+using namespace ac::ops_with_other_types;
+#endif
 
+namespace ac {
   // Functions to fill bits
 
   template<typename T>
@@ -2770,8 +2789,6 @@ T *operator -(T *ptr, const ac_int<W,S> &op2) {
   return ptr - op2.to_int64(); 
 }
 // -----------------------------------------  End of Mixed Operators with Pointers 
-
-using namespace ac::ops_with_other_types;
 
 namespace ac_intN {
   ///////////////////////////////////////////////////////////////////////////////
@@ -2961,7 +2978,7 @@ SPECIAL_VAL_FOR_INTS(Ulong, 64, false)
 #define INIT_ARRAY_SPECIAL_VAL_FOR_INTS(C_TYPE) \
   template<ac_special_val V> \
   inline bool init_array(C_TYPE *a, int n) { \
-    C_TYPE t = value<V>(*a); \
+    C_TYPE t = value<V>((C_TYPE) 0); \
     for(int i=0; i < n; i++) \
       a[i] = t; \
     return true; \
@@ -2972,7 +2989,8 @@ namespace ac {
 // function to initialize (or uninitialize) arrays 
   template<ac_special_val V, int W, bool S>
   inline bool init_array(ac_int<W,S> *a, int n) {
-    ac_int<W,S> t = value<V>(*a);
+    ac_int<W,S> t;
+    t.template set_val<V>();
     for(int i=0; i < n; i++)
       a[i] = t;
     return true;

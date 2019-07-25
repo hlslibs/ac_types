@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
- *  Copyright 2004-2018, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -456,7 +456,9 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_int<W,S> &a, const std
 template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
 inline void sc_trace(sc_core::sc_trace_file *tf, const ac_fixed<W,I,S,Q,O> &a, const std::string &name)
 {
-  sc_trace(tf, *(const ac_int<W,S>*) &a, name);
+  const int iv_N = (W+31+!S)/32;
+  typedef typename ac_private::template iv<iv_N> CommonBase_t;
+  sc_trace(tf, *(const ac_int<W,S>*)(const CommonBase_t*) &a, name);
 }
 //==============================================================================
 #endif
@@ -471,6 +473,50 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_float<W,I,E,Q> &a, con
 {
   sc_trace(tf, a.m, name + ".m");
   sc_trace(tf, a.e, name + ".e");
+}
+//==============================================================================
+#endif
+
+#if defined(__AC_STD_FLOAT_H) && !defined(SC_TRACE_AC_STD_FLOAT)
+#define SC_TRACE_AC_STD_FLOAT
+//==============================================================================
+// TRACING SUPPORT FOR AC_STD_FLOAT
+template<int W, int E>
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_std_float<W,E> &a, const std::string &name)
+{
+  sc_trace(tf, a.data(), name + ".d");
+}
+//==============================================================================
+//==============================================================================
+// TRACING SUPPORT FOR AC_IEEE_FLOAT
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_ieee_float<binary16> &a, const std::string &name)
+{
+  sc_trace(tf, a.data(), name + ".d");
+}
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_ieee_float<binary32> &a, const std::string &name)
+{
+  sc_trace(tf, *(const int*) &a.data(), name + ".d");
+}
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_ieee_float<binary64> &a, const std::string &name)
+{
+  sc_trace(tf, *(const long long*) &a.data(), name + ".d");
+}
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_ieee_float<binary128> &a, const std::string &name)
+{
+  sc_trace(tf, ((const long long*) &a.data())[0], name + ".d0");
+  sc_trace(tf, ((const long long*) &a.data())[1], name + ".d1");
+}
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac_ieee_float<binary256> &a, const std::string &name)
+{
+  sc_trace(tf, ((const long long*) &a.data())[0], name + ".d0");
+  sc_trace(tf, ((const long long*) &a.data())[1], name + ".d1");
+  sc_trace(tf, ((const long long*) &a.data())[2], name + ".d2");
+  sc_trace(tf, ((const long long*) &a.data())[3], name + ".d3");
+}
+// TRACING SUPPORT FOR AC::BFLOAT16
+inline void sc_trace(sc_core::sc_trace_file *tf, const ac::bfloat16 &a, const std::string &name)
+{
+  sc_trace(tf, a.data(), name + ".d");
 }
 //==============================================================================
 #endif

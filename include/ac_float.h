@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
- *  Copyright 2013-2018, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -650,24 +650,28 @@ public:
     return r;
   } 
   template<AC_FL_T(2)>
-  ac_float operator +=(const AC_FL(2) &op2) {
+  ac_float &operator +=(const AC_FL(2) &op2) {
     ac_float r;
     plus_minus(op2, r);
     *this = r; 
+    return *this;
   } 
   template<AC_FL_T(2)>
-  ac_float operator -=(const AC_FL(2) &op2) {
+  ac_float &operator -=(const AC_FL(2) &op2) {
     ac_float r;
     plus_minus(op2, r, true);
     *this = r; 
+    return *this;
   } 
   template<AC_FL_T(2)>
-  ac_float operator *=(const AC_FL(2) &op2) {
+  ac_float &operator *=(const AC_FL(2) &op2) {
     *this = *this * op2;
+    return *this;
   } 
   template<AC_FL_T(2)>
-  ac_float operator /=(const AC_FL(2) &op2) {
+  ac_float &operator /=(const AC_FL(2) &op2) {
     *this = *this / op2;
+    return *this;
   } 
   ac_float operator + () const {
     return *this;
@@ -1154,7 +1158,8 @@ namespace ac {
 // function to initialize (or uninitialize) arrays
   template<ac_special_val V, AC_FL_T() > 
   inline bool init_array( AC_FL() *a, int n) {
-    AC_FL0() t = value<V>(*a);
+    AC_FL0() t;
+    t.template set_val<V>();
     for(int i=0; i < n; i++)
       a[i] = t;
     return true;

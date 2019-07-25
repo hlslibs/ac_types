@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
  *  Copyright 2008-2016, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -439,7 +439,8 @@ inline ac_complex<T> value(ac_complex<T>) {
 namespace ac {
   template<ac_special_val V, typename T>
   inline bool init_array(ac_complex<T> *a, int n) {
-    ac_complex<T> t = value<V>(*a);
+    T val = value<V>((T) 0);
+    ac_complex<T> t(val, val);
     for(int i=0; i < n; i++)
       a[i] = t;
     return true;

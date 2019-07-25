@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
- *  Copyright 2005-2018, Mentor Graphics Corporation,                     *
+ *  Copyright 2005-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -870,23 +870,34 @@ public:
   template<int W2, bool S2, int WX, bool SX>
   inline ac_fixed &set_slc(const ac_int<WX,SX> lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb.to_int() + W2 <= W && lsb.to_int() >= 0, "Out of bounds set_slc");
-    unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else {
+      unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    }
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
   template<int W2, bool S2>
   inline ac_fixed &set_slc(signed lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb + W2 <= W && lsb >= 0, "Out of bounds set_slc");
-    unsigned ulsb = lsb & ((unsigned)~0 >> 1);
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else {
+      unsigned ulsb = lsb & ((unsigned)~0 >> 1);
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    }
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
   template<int W2, bool S2>
   inline ac_fixed &set_slc(unsigned ulsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(ulsb + W2 <= W, "Out of bounds set_slc");
-    Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
+    if(W == W2)
+      Base::operator =(slc);
+    else
+      Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     bit_adjust();   // in case sign bit was assigned 
     return *this;
   }
@@ -1212,8 +1223,10 @@ inline std::ostream& operator << (std::ostream &os, const ac_fixed<W,I,S,Q,O> &x
 
 // --------------------------------------- End of Macros for Binary Operators with C Integers 
 
+#ifdef AC_FIXED_NS_FOR_MIXED_OPERATORS
 namespace ac {
   namespace ops_with_other_types {
+#endif
     // Binary Operators with C Integers --------------------------------------------
     FX_OPS_WITH_INT(bool, 1, false)
     FX_OPS_WITH_INT(char, 8, true)
@@ -1228,9 +1241,10 @@ namespace ac {
     FX_OPS_WITH_INT(Slong, 64, true)
     FX_OPS_WITH_INT(Ulong, 64, false)
     // -------------------------------------- End of Binary Operators with Integers 
+#ifdef AC_FIXED_NS_FOR_MIXED_OPERATORS
   }  // ops_with_other_types namespace
-
 } // ac namespace
+#endif
 
 
 // Macros for Binary Operators with ac_int --------------------------------------------
@@ -1273,8 +1287,10 @@ namespace ac {
 
 // -------------------------------------------- End of Macros for Binary Operators with ac_int
 
+#ifdef AC_FIXED_NS_FOR_MIXED_OPERATORS
 namespace ac {
   namespace ops_with_other_types {
+#endif
     // Binary Operators with ac_int --------------------------------------------
     FX_BIN_OP_WITH_AC_INT(*, mult)
     FX_BIN_OP_WITH_AC_INT(+, plus)
@@ -1326,11 +1342,12 @@ namespace ac {
       return op2.operator <= (op); 
     }
     // -------------------------------------- End of Relational Operators with double 
-
+#ifdef AC_FIXED_NS_FOR_MIXED_OPERATORS
   }  // ops_with_other_types namespace
 } // ac namespace
-
 using namespace ac::ops_with_other_types;
+#endif
+
 
 #if (defined(_MSC_VER) && !defined(__EDG__))
 #pragma warning( disable: 4700 )
@@ -1356,7 +1373,8 @@ namespace ac {
 // function to initialize (or uninitialize) arrays
   template<ac_special_val V, int W, int I, bool S, ac_q_mode Q, ac_o_mode O> 
   inline bool init_array(ac_fixed<W,I,S,Q,O> *a, int n) {
-    ac_fixed<W,I,S> t = value<V>(*a);
+    ac_fixed<W,I,S> t;
+    t.template set_val<V>();
     for(int i=0; i < n; i++)
       a[i] = t;
     return true;

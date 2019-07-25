@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Fri Oct 12 12:26:10 PDT 2018                        *
+ *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.0                                               *
+ *  Release Build   : 3.9.1                                               *
  *                                                                        *
- *  Copyright 2013-2015, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *  
@@ -44,13 +44,13 @@
 #   - ftp://sourceware.org/pub/gdb/snapshots/current/
 #
 # Alternatives ways to import this script in gdb 
-# 1. run gdb and specify -ex 'py execfile("ac_pp.py")'
+# 1. run gdb and specify -ex 'py exec(open("ac_pp.py").read())'
 #
 # 2. run gdb, and type the command: 
-#    py execfile("ac_pp.py")
+#    py exec(open("ac_pp.py").read())
 #
 # 3  load it into the .gdbinit file by adding: 
-#    py execfile("ac_pp.py")
+#    py exec(open("ac_pp.py").read())
 #
 
 # Pretty print parameters for AC Datatypes
@@ -70,6 +70,10 @@
 import re
 import decimal
 import gdb
+import sys
+
+if sys.version_info[0] > 2:
+    long = int
 
 def real_type (val):
     # Get the type.
@@ -197,6 +201,103 @@ class pp_ac_complex:
         i = self.val["_i"]
         return r.to_string() + " + j " + i.to_string()
 
+def read_slice_r(val, msb):
+    p2 = 2 ** msb 
+    q = val // p2
+    return val - q*p2
+
+def read_slice_l(val, lsb):
+    p2 = 2 ** lsb 
+    return val // p2
+
+def value_for_ll_array(d, words):
+        int_val = long(d[words-1])
+        for word_i in range(words-2, -1, -1):
+            int_val *= (2 ** 64)
+            int_val += long((d[word_i] & 0xffffffffffffffff))
+        return int_val
+
+class pp_ac_std_float_helper:
+    def __init__(self, d, w, e_w):
+        m_w = w - e_w - 1
+        exp_bias = (1 << (e_w-1)) - 1
+        d_without_sign = read_slice_r(d, w-1)
+
+        self.width = w
+        self.e_width = e_w
+        self.sign = d < 0
+        raw_exp = read_slice_l(d_without_sign, m_w)
+        raw_mant = read_slice_r(d_without_sign, m_w)
+        self.nan = False
+        self.inf = False 
+        self.mant = raw_mant
+        self.exp = raw_exp - exp_bias
+        if raw_exp != (1 << e_w) - 1:
+            if raw_exp:
+                self.mant = raw_mant + 2 ** m_w
+            else:
+                self.exp += 1
+        else:
+            if raw_mant:
+                self.nan = True
+            else:
+                self.inf = True
+
+    def to_decimal(self):
+        if self.nan:
+            f = decimal.Decimal('NaN')
+        elif self.inf:
+            f = decimal.Decimal('Infinity')
+        else:
+            m_w = self.width - self.e_width - 1
+            mant_f = self.mant / (decimal.Decimal(2)**m_w)
+            f = mant_f * (decimal.Decimal(2) ** self.exp)
+        if self.sign:
+            f = -f
+        return f
+
+    def to_string(self):
+        return str(self.to_decimal())
+
+class pp_ac_std_float:
+    def __init__(self, val):
+        self.val = val
+        t_name = real_type(val).__str__()
+        m1 = re.match( r'^ac_std_float<([0-9]*),\s*([0-9]*)\s*>$', t_name )
+        self.w = int(m1.group(1))
+        self.e_w = int(m1.group(2))
+
+
+    def to_string(self):
+        d = pp_iv(self.val["d"]).to_long()
+        return pp_ac_std_float_helper(d, self.w, self.e_w).to_string() 
+
+
+class pp_ac_ieee_float:
+    def __init__(self, val):
+        self.val = val
+
+    def to_string(self):
+        w = int(self.val["width"])
+        e_w = int(self.val["e_width"])
+        d_field = self.val["d"]
+        if real_type(d_field).code == gdb.TYPE_CODE_FLT:
+            return str(d_field)
+        if w >= 128:
+            d = value_for_ll_array(d_field, w // 64)
+        else:
+            d = long(d_field)
+        return pp_ac_std_float_helper(d, w, e_w).to_string() 
+
+class pp_ac_bfloat16:
+    def __init__(self, val):
+        self.val = val
+    def to_string(self):
+        width = int(self.val["width"])
+        e_width = int(self.val["e_width"])
+        d = int(self.val["d"])
+        return pp_ac_std_float_helper(d, width, e_width).to_string() 
+
 def ac_lookup_function (val):
     "Look-up and return a pretty-printer that can print val."
 
@@ -236,6 +337,15 @@ def register_ac_pretty_printers ():
 
     ac_pretty_printers_dict[re.compile ('^class ac_complex<.*>$')]   = pp_ac_complex
     ac_pretty_printers_dict[re.compile ('^ac_complex<.*>$')]   = pp_ac_complex
+
+    ac_pretty_printers_dict[re.compile ('^class ac_std_float<.*>$')]   = pp_ac_std_float
+    ac_pretty_printers_dict[re.compile ('^ac_std_float<.*>$')]   = pp_ac_std_float
+
+    ac_pretty_printers_dict[re.compile ('^class ac_ieee_float<.*>$')]   = pp_ac_ieee_float
+    ac_pretty_printers_dict[re.compile ('^ac_ieee_float<.*>$')]   = pp_ac_ieee_float
+
+    ac_pretty_printers_dict[re.compile ('^class ac::bfloat16$')]   = pp_ac_bfloat16
+    ac_pretty_printers_dict[re.compile ('^ac::bfloat16$')]   = pp_ac_bfloat16
 
 class PP_Param_ac_Radix (gdb.Parameter):
     set_doc = "Radix setting for Pretty Print for Algorithmic C Datatypes"
