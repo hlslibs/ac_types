@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
+ *  Release Date    : Tue Aug 27 17:37:02 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.1                                               *
+ *  Release Build   : 3.9.2                                               *
  *                                                                        *
  *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -753,7 +753,13 @@ namespace ac_private {
     int n_mss = 2*n_msi + n_mss_odd;
     if(n_mss < d_mss) {
       // q already initialized to 0
-      // r already initialized to n
+      if(R) {
+        int r_msi = AC_MIN(R-1, n_msi);
+        for(int j = 0; j <= r_msi; j++)
+          r[j] = n[j];
+        for(int j = r_msi+1; j < R; j++)
+          r[j] = 0;
+      }
     } else {
       uw2 r1[N+1];
       r1[n_msi+1] = 0;
@@ -842,8 +848,7 @@ namespace ac_private {
       else
         iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) / (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
     else if(!Num_s && !Den_s) {
-      iv_udiv<N1,N2,N1,0,int,unsigned,Slong,Ulong,16>(op1, op2, r, 0);
-      iv_extend<Nr-N1>(r+N1, 0);
+      iv_udiv<N1,N2,Nr,0,int,unsigned,Slong,Ulong,16>(op1, op2, r, 0);
     }
     else {
       enum { N1_neg = N1+(Num_s==2), N2_neg = N2+(Den_s==2)}; 
@@ -882,8 +887,7 @@ namespace ac_private {
       else
         iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) % (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
     else if(!Num_s && !Den_s) {
-      iv_udiv<N1,N2,0,N2,int,unsigned,Slong,Ulong,16>(op1, op2, 0, r);
-      iv_extend<Nr-N2>(r+N2, 0);
+      iv_udiv<N1,N2,0,Nr,int,unsigned,Slong,Ulong,16>(op1, op2, 0, r);
     }
     else {
       enum { N1_neg = N1+(Num_s==2), N2_neg = N2+(Den_s==2)};
@@ -1051,11 +1055,11 @@ namespace ac_private {
   }
 
   template<> inline void iv_shift_l2<1,1,false>(const int *op1, signed op2, int *r) {
-    r[0] = (op2 < 32) ? (op1[0] << op2) : 0;
+    r[0] = (op2 < 32) ? ( (unsigned) op1[0] << op2) : 0;
   }
   template<> inline void iv_shift_l2<1,1,true>(const int *op1, signed op2, int *r) {
     r[0] = (op2 >= 0) ? 
-      (op2 < 32) ? (op1[0] << op2) : 0 :
+      (op2 < 32) ? ( (unsigned) op1[0] << op2) : 0 :
       (op2 > -32) ? (op1[0] >> -op2) : (op1[0] >> 31);
   }
   
@@ -1073,7 +1077,7 @@ namespace ac_private {
   template<> inline void iv_shift_r2<1,1,true>(const int *op1, signed op2, int *r) {
     r[0] = (op2 >= 0) ? 
       (op2 < 32) ? (op1[0] >> op2) : (op1[0] >> 31) :
-      (op2 > -32) ? (op1[0] << -op2) : 0;
+      (op2 > -32) ? ( (unsigned) op1[0] << -op2) : 0;
   }
 
   template<int N, int Nr, int B>
@@ -1181,7 +1185,7 @@ namespace ac_private {
     }
     for(int i = 0; i < n; i++) {
       if (b != AC_BIN && bits < 0)
-        r[k] += (unsigned char) ((v[i] << (B+bits)) & (b-1)); 
+        r[k] += (unsigned char) (( (unsigned) v[i] << (B+bits)) & (b-1)); 
       unsigned int m = (unsigned) v[i] >> -bits;
       for(bits += 32; bits > 0 && k; bits -= B) {
         r[--k] = (char) (m & (b-1)); 
@@ -1200,8 +1204,8 @@ namespace ac_private {
       if(bits_msw) {
         unsigned left_shift = 32 - bits_msw; 
         for(int i=msw; i > 0; i--)
-          v[i] = v[i] << left_shift | (unsigned) v[i-1] >> bits_msw; 
-        v[0] = v[0] << left_shift;
+          v[i] = (unsigned) v[i] << left_shift | (unsigned) v[i-1] >> bits_msw; 
+        v[0] = (unsigned) v[0] << left_shift;
       }
       int lsw = 0;
       while(lsw < msw || v[msw] ) { 
@@ -1467,17 +1471,17 @@ namespace ac_private {
       unsigned msb_b = msb & 31; 
       if(N2==1) { 
         if(msb_v == lsb_v) 
-          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb_b);
+          v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb_b);
         else {
-          v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (all_ones << lsb_b);
+          v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (all_ones << lsb_b);
           unsigned m = (((unsigned) op2.v[0] >> 1) >> (31-lsb_b));
           v[msb_v] ^= (v[msb_v] ^ m) & ~((all_ones<<1)<<msb_b);
         }
       } else {
-        v[lsb_v] ^= (v[lsb_v] ^ (op2.v[0] << lsb_b)) & (all_ones << lsb_b);
+        v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (all_ones << lsb_b);
         for(int i = 1; i < N2-1; i++)
-          v[lsb_v+i] = (op2.v[i] << lsb_b) | (((unsigned) op2.v[i-1] >> 1) >> (31-lsb_b)); 
-        unsigned t = (op2.v[N2-1] << lsb_b) | (((unsigned) op2.v[N2-2] >> 1) >> (31-lsb_b));
+          v[lsb_v+i] = ((unsigned) op2.v[i] << lsb_b) | (((unsigned) op2.v[i-1] >> 1) >> (31-lsb_b)); 
+        unsigned t = ((unsigned) op2.v[N2-1] << lsb_b) | (((unsigned) op2.v[N2-2] >> 1) >> (31-lsb_b));
         unsigned m;
         if(msb_v-lsb_v == N2) {
           v[msb_v-1] = t; 
@@ -1504,7 +1508,7 @@ namespace ac_private {
   }
   
   template<> template<> inline void iv<1>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
-    v[0] ^= (v[0] ^ (op2.v[0] << lsb)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb);
+    v[0] ^= (v[0] ^ ((unsigned) op2.v[0] << lsb)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb);
   }
   template<> template<> inline void iv<2>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
     Ulong l = to_uint64();
@@ -1808,7 +1812,7 @@ __AC_INT_UTILITY_BASE
 
   inline void bit_adjust() {
     const unsigned rem = (32-W)&31;
-    Base::v[N-1] =  S ? ((Base::v[N-1]  << rem) >> rem) : (rem ? 
+    Base::v[N-1] =  S ? ((signed) ((unsigned) Base::v[N-1]  << rem) >> rem) : (rem ? 
                   ((unsigned) Base::v[N-1]  << rem) >> rem : 0); 
   }
 
@@ -2390,7 +2394,7 @@ public:
       // lsb of int (val&1) is written to bit
       if(d_index < W) {
         int *pval = &d_bv.v[d_index>>5];
-        *pval ^= (*pval ^ (val << (d_index&31) )) & 1 << (d_index&31);
+        *pval ^= (*pval ^ ( (unsigned) val << (d_index&31) )) & 1 << (d_index&31);
         d_bv.bit_adjust();   // in case sign bit was assigned 
       }
       return *this;

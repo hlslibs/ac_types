@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 3.9                                                 *
  *                                                                        *
- *  Release Date    : Wed Jul 17 14:22:21 PDT 2019                        *
+ *  Release Date    : Tue Aug 27 17:37:02 PDT 2019                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.1                                               *
+ *  Release Build   : 3.9.2                                               *
  *                                                                        *
  *  Copyright 2005-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -115,7 +115,7 @@ __AC_FIXED_UTILITY_BASE
 
   inline void bit_adjust() {
     const unsigned rem = (32-W)&31;
-    Base::v[N-1] =  S ? ((Base::v[N-1]  << rem) >> rem) : (rem ? 
+    Base::v[N-1] =  S ? ((signed) ((unsigned)Base::v[N-1]  << rem) >> rem) : (rem ? 
                   ((unsigned) Base::v[N-1]  << rem) >> rem : 0); 
   }
   inline Base &base() { return *this; }
@@ -916,7 +916,7 @@ public:
       // lsb of int (val&1) is written to bit
       if(d_index < W) {
         int *pval = &d_bv.v[d_index>>5];
-        *pval ^= (*pval ^ (val << (d_index&31) )) & 1 << (d_index&31);
+        *pval ^= (*pval ^ ((unsigned) val << (d_index&31) )) & 1 << (d_index&31);
         d_bv.bit_adjust();   // in case sign bit was assigned
       }
       return *this;
