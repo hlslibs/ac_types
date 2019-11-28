@@ -443,9 +443,9 @@ public:
   const ac_int<E,true> exp() const { return e; }
   bool normalize() {
     bool all_sign;
-    int ls = m.leading_sign(all_sign);
+    int ls = (int)m.leading_sign(all_sign);
     bool m_zero = all_sign & !m[0];
-    const int max_shift_left = (1 << (E-1)) + e; 
+    const int max_shift_left = (1 << (E-1)) + (int)e; 
     bool normal = ls <= max_shift_left;
     int shift_l = normal ? ls : max_shift_left; 
     m <<= shift_l;
