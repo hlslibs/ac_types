@@ -2,35 +2,35 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.9                                                 *
+ *  Software Version: 4.0                                                 *
  *                                                                        *
- *  Release Date    : Tue Aug 27 17:37:02 PDT 2019                        *
+ *  Release Date    : Wed Jun 10 19:26:47 PDT 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.2                                               *
+ *  Release Build   : 4.0.0                                               *
  *                                                                        *
- *  Copyright 2008-2016, Mentor Graphics Corporation,                     *
+ *  Copyright 2008-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
- *  
+ *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *
- *  you may not use this file except in compliance with the License.      * 
+ *  you may not use this file except in compliance with the License.      *
  *  You may obtain a copy of the License at                               *
  *                                                                        *
  *      http://www.apache.org/licenses/LICENSE-2.0                        *
  *                                                                        *
- *  Unless required by applicable law or agreed to in writing, software   * 
- *  distributed under the License is distributed on an "AS IS" BASIS,     * 
+ *  Unless required by applicable law or agreed to in writing, software   *
+ *  distributed under the License is distributed on an "AS IS" BASIS,     *
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or       *
- *  implied.                                                              * 
- *  See the License for the specific language governing permissions and   * 
+ *  implied.                                                              *
+ *  See the License for the specific language governing permissions and   *
  *  limitations under the License.                                        *
  **************************************************************************
  *                                                                        *
  *  The most recent version of this package is available at github.       *
  *                                                                        *
  *************************************************************************/
-                                                                                                                     
+
 /*
 //  Source:         ac_complex.h
 //  Description:    complex type with parameterized type that can be:
@@ -40,7 +40,7 @@
 //                    - ac_fixed
 //                    - ac_float
 //                  ac_complex based on C integers, ac_int, ac_fixed and ac_float can
-//                  be mixed  
+//                  be mixed
 //  Author:         Andres Takach, Ph.D.
 */
 
@@ -54,7 +54,7 @@ namespace __AC_NAMESPACE {
 #endif
 
 template<typename T> class ac_complex;
- 
+
 namespace ac_private {
   // specializations after definition of ac_complex
   template<typename T>
@@ -79,8 +79,8 @@ public:   // temporary workaround
   T _i;
   typedef typename ac_private::map<T>::t map_T;
   typedef typename map_T::rt_unary::mag_sqr T_sqr;
-  typedef typename ac_private::map<T_sqr>::t map_T_sqr; 
-  typedef typename ac_private::map<typename map_T::rt_unary::mag>::t map_T_mag; 
+  typedef typename ac_private::map<T_sqr>::t map_T_sqr;
+  typedef typename ac_private::map<typename map_T::rt_unary::mag>::t map_T_mag;
 public:
   typedef T element_type;
   template<typename T2>
@@ -98,7 +98,7 @@ public:
 
   struct rt_unary {
     typedef typename map_T_sqr::template rt_T<map_T_sqr>::plus  mag_sqr;
-    typedef typename map_T_mag::template rt_T<map_T_mag>::plus  mag;   // overly conservative for signed 
+    typedef typename map_T_mag::template rt_T<map_T_mag>::plus  mag;   // overly conservative for signed
     typedef ac_complex<typename map_T::rt_unary::neg>  neg;
     template<unsigned N>
     struct set {
@@ -108,20 +108,11 @@ public:
 
   ac_complex() { }
   template<typename T2>
-  ac_complex(const ac_complex<T2> &c) {
-    _r = c.r();
-    _i = c.i();
-  }
+  ac_complex(const ac_complex<T2> &c) : _r(c.r()), _i(c.i()) {}
   template<typename T2>
-  ac_complex(const T2 &r) {
-    _r = r;
-    _i = 0;
-  }
+  ac_complex(const T2 &r) : _r(r), _i(0) {}
   template<typename T2, typename T3>
-  ac_complex(const T2 &r, const T3 &i) {
-    _r = r;
-    _i = i;
-  }
+  ac_complex(const T2 &r, const T3 &i) : _r(r), _i(i) {}
   const T &r() const { return _r; }
   const T &i() const { return _i; }
   T &r() { return _r; }
@@ -157,7 +148,7 @@ public:
     _i -= op2.i();
     return *this;
   }
- 
+
   template<typename T2>
   ac_complex &operator -=(const T2 &op2) {
     _r -= op2;
@@ -166,15 +157,15 @@ public:
 
   template<typename T2>
   ac_complex &operator *=(const ac_complex<T2> &op2) {
-    T r0 = _r*op2.r() - _i*op2.i(); 
-    _i = _r*op2.i() + _i*op2.r(); 
+    T r0 = _r*op2.r() - _i*op2.i();
+    _i = _r*op2.i() + _i*op2.r();
     _r = r0;
     return *this;
   }
 
   template<typename T2>
   ac_complex &operator *=(const T2 &op2) {
-    _r = _r*op2; 
+    _r = _r*op2;
     _i = _i*op2;
     return *this;
   }
@@ -190,7 +181,7 @@ public:
 
   template<typename T2>
   ac_complex &operator /=(const T2 &op2) {
-    _r = _r/op2; 
+    _r = _r/op2;
     _i = _i/op2;
     return *this;
   }
@@ -206,7 +197,7 @@ public:
 
   // ! ------------------------------------------------------------------------
   bool operator ! () const {
-    return !_r && !_i; 
+    return !_r && !_i;
   }
 
   typename rt_unary::neg conj() const {
@@ -230,7 +221,7 @@ public:
     std::string r = "ac_complex<";
     r += map_T::type_name();
     r += '>';
-    return r; 
+    return r;
   }
 
 };
@@ -265,7 +256,7 @@ namespace ac_private {
       typedef ac_complex<typename T::template rt_T<T2>::logic> logic;
       typedef ac_complex<typename T::template rt_T<T2>::div> div;
       typedef ac_complex<typename T::template rt_T<T2>::div2> div2;
-      typedef ac_complex<typename T::template rt_T<T2>::mult> mult; 
+      typedef ac_complex<typename T::template rt_T<T2>::mult> mult;
     };
   };
   // with T2 == ac_fixed
@@ -280,7 +271,7 @@ namespace ac_private {
       typedef ac_complex<typename T::template rt_T<T2>::logic> logic;
       typedef ac_complex<typename T::template rt_T<T2>::div> div;
       typedef ac_complex<typename T::template rt_T<T2>::div2> div2;
-      typedef ac_complex<typename T::template rt_T<T2>::mult> mult; 
+      typedef ac_complex<typename T::template rt_T<T2>::mult> mult;
     };
   };
   // with T2 == ac_int
@@ -295,7 +286,7 @@ namespace ac_private {
       typedef ac_complex<typename T::template rt_T<T2>::logic> logic;
       typedef ac_complex<typename T::template rt_T<T2>::div> div;
       typedef ac_complex<typename T::template rt_T<T2>::div2> div2;
-      typedef ac_complex<typename T::template rt_T<T2>::mult> mult; 
+      typedef ac_complex<typename T::template rt_T<T2>::mult> mult;
     };
   };
   // with T2 == c_type<TC>
@@ -310,7 +301,7 @@ namespace ac_private {
       typedef ac_complex<typename T::template rt_T<T2>::logic> logic;
       typedef ac_complex<typename T::template rt_T<T2>::div> div;
       typedef ac_complex<typename T::template rt_T<T2>::div2> div2;
-      typedef ac_complex<typename T::template rt_T<T2>::mult> mult; 
+      typedef ac_complex<typename T::template rt_T<T2>::mult> mult;
     };
   };
 }
@@ -338,13 +329,13 @@ inline typename ac_complex<T>::template rt_T<ac_complex<T2> >::minus operator -(
   typename ac_complex<T>::template rt_T<ac_complex<T2> >::minus res( op.r() - op2.r(), op.i() - op2.i() );
   return res;
 }
-                                                                                                                        
+
 template<typename T, typename T2>
 inline typename ac_complex<T2>::template rt_T<T>::minus2 operator -(const T &op, const ac_complex<T2> &op2) {
   typename ac_complex<T2>::template rt_T<T>::minus2 res( op - op2.r(), -op2.i() );
   return res;
 }
-                                                                                                                        
+
 template<typename T, typename T2>
 inline typename ac_complex<T>::template rt_T<T2>::minus operator -(const ac_complex<T> &op, const T2 &op2) {
   typename ac_complex<T>::template rt_T<T2>::minus res( op.r() - op2, op.i() );
@@ -353,16 +344,16 @@ inline typename ac_complex<T>::template rt_T<T2>::minus operator -(const ac_comp
 
 template<typename T, typename T2>
 inline typename ac_complex<T>::template rt_T<ac_complex<T2> >::mult operator *(const ac_complex<T> &op, const ac_complex<T2> &op2) {
-  typename ac_complex<T>::template rt_T<ac_complex<T2> >::mult res( op.r()*op2.r() - op.i()*op2.i(), op.i()*op2.r() + op.r()*op2.i() ); 
+  typename ac_complex<T>::template rt_T<ac_complex<T2> >::mult res( op.r()*op2.r() - op.i()*op2.i(), op.i()*op2.r() + op.r()*op2.i() );
   return res;
 }
-                                                                                                                        
+
 template<typename T, typename T2>
 inline typename ac_complex<T2>::template rt_T<T>::mult operator *(const T &op, const ac_complex<T2> &op2) {
   typename ac_complex<T2>::template rt_T<T>::mult res( op*op2.r(), op*op2.i());
   return res;
 }
-                                                                                                                        
+
 template<typename T, typename T2>
 inline typename ac_complex<T>::template rt_T<T2>::mult operator *(const ac_complex<T> &op, const T2 &op2) {
   typename ac_complex<T>::template rt_T<T2>::mult res( op.r()*op2, op.i()*op2 );
@@ -381,7 +372,7 @@ inline typename ac_complex<T>::template rt_T<T2>::div operator /(const ac_comple
   typename ac_complex<T>::template rt_T<T2>::div res( op.r()/op2, op.i()/op2 );
   return res;
 }
-                                                                                                                        
+
 template<typename T, typename T2>
 inline typename ac_complex<T2>::template rt_T<T>::div2 operator /(const T &op, const ac_complex<T2> &op2) {
   typename ac_complex<T2>::rt_unary::mag_sqr d = op2.mag_sqr();
@@ -420,7 +411,7 @@ inline bool operator != (const ac_complex<T> &op, const T2 &op2) {
 }
 
 // Stream --------------------------------------------------------------------
-                                                                                                                     
+
 template<typename T>
 inline std::ostream& operator << (std::ostream &os, const ac_complex<T> &x) {
 #ifndef __SYNTHESIS__

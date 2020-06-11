@@ -2,28 +2,28 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.9                                                 *
+ *  Software Version: 4.0                                                 *
  *                                                                        *
- *  Release Date    : Tue Aug 27 17:37:02 PDT 2019                        *
+ *  Release Date    : Wed Jun 10 19:26:47 PDT 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.2                                               *
+ *  Release Build   : 4.0.0                                               *
  *                                                                        *
  *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
- *  
+ *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *
- *  you may not use this file except in compliance with the License.      * 
+ *  you may not use this file except in compliance with the License.      *
  *  You may obtain a copy of the License at                               *
  *                                                                        *
  *      http://www.apache.org/licenses/LICENSE-2.0                        *
  *                                                                        *
- *  Unless required by applicable law or agreed to in writing, software   * 
- *  distributed under the License is distributed on an "AS IS" BASIS,     * 
+ *  Unless required by applicable law or agreed to in writing, software   *
+ *  distributed under the License is distributed on an "AS IS" BASIS,     *
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or       *
- *  implied.                                                              * 
- *  See the License for the specific language governing permissions and   * 
+ *  implied.                                                              *
+ *  See the License for the specific language governing permissions and   *
  *  limitations under the License.                                        *
  **************************************************************************
  *                                                                        *
@@ -48,7 +48,7 @@
 namespace __AC_NAMESPACE {
 #endif
 
-// Explicit conversion functions from ac to sc and viceversa 
+// Explicit conversion functions from ac to sc and viceversa
 template <int W>
 ac_int<W, true> to_ac(const sc_dt::sc_bigint<W> &val){
   enum {N = (W+31)/32 };
@@ -58,10 +58,10 @@ ac_int<W, true> to_ac(const sc_dt::sc_bigint<W> &val){
 #pragma UNROLL y
 #endif
   for(int i = 0; i < N; i++) {
-    r.set_slc(i*32, ac_int<32,true>(v.to_int())); 
+    r.set_slc(i*32, ac_int<32,true>(v.to_int()));
     v >>= 32;
   }
-  return ac_int<W,true>(r); 
+  return ac_int<W,true>(r);
 }
 
 template <int W>
@@ -73,7 +73,7 @@ ac_int<W, false> to_ac(const sc_dt::sc_biguint<W> &val){
 #pragma UNROLL y
 #endif
   for(int i = 0; i < N; i++) {
-    r.set_slc(i*32, ac_int<32,true>(v.to_int())); 
+    r.set_slc(i*32, ac_int<32,true>(v.to_int()));
     v >>= 32;
   }
   return ac_int<W,false>(r);
@@ -93,7 +93,7 @@ sc_dt::sc_bigint<W> to_sc(const ac_int<W,true> &val) {
   }
   return sc_dt::sc_bigint<W>(r);
 }
-  
+
 template <int W>
 sc_dt::sc_biguint<W> to_sc(const ac_int<W,false> &val) {
   enum {N = (W+31)/32 };
@@ -116,8 +116,8 @@ ac_fixed<W,I, true> to_ac(const sc_dt::sc_fixed<W,I,Q,O,nbits> &val){
   sc_dt::sc_fixed<W,W> fv;
   fv.range(W-1,0) = val.range(W-1,0);
   sc_dt::sc_bigint<W> v(fv);
-  r.set_slc(0, to_ac(v)); 
-  return r; 
+  r.set_slc(0, to_ac(v));
+  return r;
 }
 
 template <int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
@@ -126,8 +126,8 @@ ac_fixed<W,I, false> to_ac(const sc_dt::sc_ufixed<W,I,Q,O,nbits> &val){
   sc_dt::sc_ufixed<W,W> fv;
   fv.range(W-1,0) = val.range(W-1,0);
   sc_dt::sc_biguint<W> v(fv);
-  r.set_slc(0, to_ac(v)); 
-  return r; 
+  r.set_slc(0, to_ac(v));
+  return r;
 }
 
 template <int W, int I, ac_q_mode Q, ac_o_mode O>
@@ -137,9 +137,9 @@ sc_dt::sc_fixed<W,I> to_sc(const ac_fixed<W,I,true,Q,O> &val) {
   sc_dt::sc_fixed<W,W> f(i);
   sc_dt::sc_fixed<W,I> r;
   r.range(W-1,0) = f.range(W-1,0);
-  return r; 
+  return r;
 }
-  
+
 template <int W, int I, ac_q_mode Q, ac_o_mode O>
 sc_dt::sc_ufixed<W,I> to_sc(const ac_fixed<W,I,false,Q,O> &val) {
   ac_int<W,false> v = val.template slc<W>(0);
@@ -147,11 +147,11 @@ sc_dt::sc_ufixed<W,I> to_sc(const ac_fixed<W,I,false,Q,O> &val) {
   sc_dt::sc_ufixed<W,W> f(i);
   sc_dt::sc_ufixed<W,I> r;
   r.range(W-1,0) = f.range(W-1,0);
-  return r; 
+  return r;
 }
 #endif
 
-// Utility global functions for initialization 
+// Utility global functions for initialization
 
 template<ac_special_val V, int W>
 inline sc_dt::sc_int<W> value(sc_dt::sc_int<W>) {
@@ -171,7 +171,7 @@ inline sc_dt::sc_int<W> value(sc_dt::sc_int<W>) {
   }
   return r;
 }
-                                                                                           
+
 template<ac_special_val V, int W>
 inline sc_dt::sc_uint<W> value(sc_dt::sc_uint<W>) {
   sc_dt::sc_uint<W> r;
@@ -186,7 +186,7 @@ inline sc_dt::sc_uint<W> value(sc_dt::sc_uint<W>) {
     r = -1;
   return r;
 }
-                                                                                           
+
 template<ac_special_val V, int W>
 inline sc_dt::sc_bigint<W> value(sc_dt::sc_bigint<W>) {
   sc_dt::sc_bigint<W> r;
@@ -205,7 +205,7 @@ inline sc_dt::sc_bigint<W> value(sc_dt::sc_bigint<W>) {
   }
   return r;
 }
-                                                                                           
+
 template<ac_special_val V, int W>
 inline sc_dt::sc_biguint<W> value(sc_dt::sc_biguint<W>) {
   sc_dt::sc_biguint<W> r;
@@ -240,7 +240,7 @@ inline sc_dt::sc_fixed<W,I,Q,O,nbits> value(sc_dt::sc_fixed<W,I,Q,O,nbits>) {
   }
   return r;
 }
-                                                                                           
+
 template<ac_special_val V, int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
 inline sc_dt::sc_ufixed<W,I,Q,O,nbits> value(sc_dt::sc_ufixed<W,I,Q,O,nbits>) {
   sc_dt::sc_ufixed<W,I> r;
@@ -319,6 +319,7 @@ namespace ac {
 //                    2.3.1 20140417
 //                    2.3.2 20171012
 
+#if !defined(NCSC)
 #if (SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
 namespace sc_core {
 class vcd_trace;
@@ -362,7 +363,7 @@ namespace sc_core {
 //==============================================================================
 // The following block of code is copied from the file sc_vcd_trace.cpp in the
 // SystemC distribution. This code should have been placed in the file
-// sc_vcd_trace.h to allow proper C++ derivation. 
+// sc_vcd_trace.h to allow proper C++ derivation.
 class vcd_trace
 {
 public:
@@ -390,10 +391,11 @@ public:
 #else
     const char* vcd_var_typ_name;
 #endif
-    int bit_width; 
+    int bit_width;
 };
 }
-   
+#endif
+
 #ifdef __AC_NAMESPACE
 namespace __AC_NAMESPACE {
 #endif
@@ -410,14 +412,14 @@ public:
     vcd_trace(name_, vcd_name_), object(object_)
   {
 #if (SYSTEMC_VERSION >= 20171012)
-    vcd_var_type = vcd_trace_file::VCD_WIRE; 
+    vcd_var_type = sc_core::vcd_trace_file::VCD_WIRE;
 #else
     vcd_var_typ_name = "wire"; // SystemC does not expose vcd_types[] in sc_vcd_trace.h
 #endif
     bit_width = W; // bit_width defined in base class 'vcd_trace'
   }
 
-  virtual void write(FILE* f) { 
+  virtual void write(FILE* f) {
     // The function to_string(AC_BIN) returns a string with the zero-radix prefix (i.e. "0b").
     // Strip that prefix off because compose_line will add its own.
     std::fprintf(f, "%s", compose_line(((ac_int<W,false>)object).to_string(AC_BIN,true).substr(3)).c_str());
@@ -541,9 +543,9 @@ inline void sc_trace(sc_core::sc_trace_file *tf, const ac_complex<T> &a, const s
 
 namespace sc_core {
 #ifdef __AC_NAMESPACE
-  using __AC_NAMESPACE::ac_tracing::sc_trace; 
+  using __AC_NAMESPACE::ac_tracing::sc_trace;
 #else
-  using ac_tracing::sc_trace; 
+  using ac_tracing::sc_trace;
 #endif
 }
 

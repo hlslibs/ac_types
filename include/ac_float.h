@@ -2,28 +2,28 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 3.9                                                 *
+ *  Software Version: 4.0                                                 *
  *                                                                        *
- *  Release Date    : Tue Aug 27 17:37:02 PDT 2019                        *
+ *  Release Date    : Wed Jun 10 19:26:47 PDT 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 3.9.2                                               *
+ *  Release Build   : 4.0.0                                               *
  *                                                                        *
  *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
- *  
+ *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *
- *  you may not use this file except in compliance with the License.      * 
+ *  you may not use this file except in compliance with the License.      *
  *  You may obtain a copy of the License at                               *
  *                                                                        *
  *      http://www.apache.org/licenses/LICENSE-2.0                        *
  *                                                                        *
- *  Unless required by applicable law or agreed to in writing, software   * 
- *  distributed under the License is distributed on an "AS IS" BASIS,     * 
+ *  Unless required by applicable law or agreed to in writing, software   *
+ *  distributed under the License is distributed on an "AS IS" BASIS,     *
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or       *
- *  implied.                                                              * 
- *  See the License for the specific language governing permissions and   * 
+ *  implied.                                                              *
+ *  See the License for the specific language governing permissions and   *
  *  limitations under the License.                                        *
  **************************************************************************
  *                                                                        *
@@ -32,7 +32,7 @@
  *************************************************************************/
 
 //  Source:         ac_float.h
-//  Description:    class for floating point operation handling in C++ 
+//  Description:    class for floating point operation handling in C++
 //  Author:         Andres Takach, Ph.D.
 
 #ifndef __AC_FLOAT_H
@@ -69,7 +69,7 @@
 
 // for safety
 #if (defined(E) || defined(WF) || defined(IF) || defined(SF))
-#error One or more of the following is defined: E, WF, IF, SF. Definition conflicts with their usage as template parameters. 
+#error One or more of the following is defined: E, WF, IF, SF. Definition conflicts with their usage as template parameters.
 #error DO NOT use defines before including third party header files.
 #endif
 
@@ -119,7 +119,7 @@ template< AC_FL_T() >
 class ac_float {
   enum { NO_UN = true, S = true, S2 = true, SR = true };
 public:
-  typedef ac_fixed<W,I,S> mant_t; 
+  typedef ac_fixed<W,I,S> mant_t;
   typedef ac_int<E,true> exp_t;
   mant_t m;
   exp_t e;
@@ -143,7 +143,7 @@ public:
   template< AC_FL_T0(2) >
   struct rt {
     enum {
-      // need to validate 
+      // need to validate
       F=W-I,
       F2=W2-I2,
       mult_w = W+W2,
@@ -183,7 +183,7 @@ public:
       lshift_i = I,
       lshift_s = S,
       lshift_e_0 = exp_t::template rt<WI,SI>::plus::width,
-      lshift_e = AC_MIN(lshift_e_0, 24), 
+      lshift_e = AC_MIN(lshift_e_0, 24),
       rshift_w = W,
       rshift_i = I,
       rshift_s = S,
@@ -192,7 +192,7 @@ public:
     };
     typedef ac_float<lshift_w, lshift_i, lshift_e> lshift;
     typedef ac_float<rshift_w, rshift_i, rshift_e> rshift;
-  }; 
+  };
 
   template<typename T>
   struct rt_T {
@@ -291,10 +291,10 @@ private:
   void assign_from(const ac_fixed<W2,I2,true,Q2,O2> &m2, int e2, bool sticky_bit, bool normalize, bool assert_on_rounding=false) {
     const bool rnd = Q!=AC_TRN & Q!=AC_TRN_ZERO & W2 > W;
     const bool need_rnd_bit = Q != AC_TRN;
-    const bool need_rem_bits = need_rnd_bit && Q != AC_RND;  
+    const bool need_rem_bits = need_rnd_bit && Q != AC_RND;
 
-    const int msb_min_power = I-1 + MIN_EXP;  
-    const int msb_min_power2 = I2-1 + min_exp2; 
+    const int msb_min_power = I-1 + MIN_EXP;
+    const int msb_min_power2 = I2-1 + min_exp2;
     const int msb_min_power_dif = msb_min_power - msb_min_power2;
     //   if > 0: target has additional negative exponent range
     //     subnormal maybe be further normalized (done even if normalize==false)
@@ -303,13 +303,13 @@ private:
     //   in either case if source is unnormalized
     //     normalization could take place
 
-    const int msb_max_power = I-1 + MAX_EXP; 
-    const int msb_max_power2 = I2-1 + max_exp2 + rnd;  
+    const int msb_max_power = I-1 + MAX_EXP;
+    const int msb_max_power2 = I2-1 + max_exp2 + rnd;
     const int msb_max_power_dif = msb_max_power - msb_max_power2;
 
-    const bool may_shift_right = msb_min_power_dif > 0; 
-    const int max_right_shift = may_shift_right ? msb_min_power_dif : 0; 
-    const int t_width = W2 + (W >= W2 ? AC_MIN(W-W2+may_shift_right, max_right_shift) : 0); 
+    const bool may_shift_right = msb_min_power_dif > 0;
+    const int max_right_shift = may_shift_right ? msb_min_power_dif : 0;
+    const int t_width = W2 + (W >= W2 ? AC_MIN(W-W2+may_shift_right, max_right_shift) : 0);
 
     int e_t = e2;
     e_t += I2-I;
@@ -322,17 +322,17 @@ private:
       ls = m2.leading_sign(all_sign);
       r_zero = all_sign & !m2[0];
     } else if(msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
-      // msb_min_power_dif < 0: src exponent less negative than trg exp represents  
+      // msb_min_power_dif < 0: src exponent less negative than trg exp represents
       //   oportunity to further normalize value in trg representation
       // msb_max_power_dif < 0: max target exp is less than max src exp
-      //   if un-normalized exp may overflow resulting in incorrect saturation 
+      //   if un-normalized exp may overflow resulting in incorrect saturation
       //     normalization is needed for correctness
       // W2 > W
       //   if un-normalized, extra bits may be incorrectly quantized away
       const int msb_range_dif = AC_MAX(-msb_min_power_dif, -msb_max_power_dif);
       const int msb_range_dif_norm_w = AC_MIN(msb_range_dif,W2-1);
       const int extra_bits = AC_MAX(W2-W,0);
-      const int norm_w = AC_MAX(msb_range_dif_norm_w, extra_bits) + 1; 
+      const int norm_w = AC_MAX(msb_range_dif_norm_w, extra_bits) + 1;
       bool all_sign;
       ls = m2.template slc<norm_w>(W2-norm_w).leading_sign(all_sign);
       r_zero = all_sign & !m2[W2-1] & !(m2 << norm_w);
@@ -377,7 +377,7 @@ public:
     typedef AC_FL(2) fl2_t;
     const int min_exp2 = fl2_t::MIN_EXP;
     const int max_exp2 = fl2_t::MAX_EXP;
-    assign_from<min_exp2,max_exp2>(op.m, op.e, false, false); 
+    assign_from<min_exp2,max_exp2>(op.m, op.e, false, false);
   }
 
   ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, bool normalize=true) {
@@ -392,7 +392,7 @@ public:
   template<int WFX, int IFX, bool SFX, int E2>
   ac_float(const ac_fixed<WFX,IFX,SFX> &m2, const ac_int<E2,true> &e2, bool normalize=true) {
     enum { WF2 = WFX+!SFX, IF2 = IFX+!SFX };
-    ac_float<WF2,IF2,E2>  f(ac_fixed<WF2,IF2,true>(m2), e2, normalize); 
+    ac_float<WF2,IF2,E2>  f(ac_fixed<WF2,IF2,true>(m2), e2, normalize);
     *this = f;
   }
 
@@ -403,7 +403,7 @@ public:
 
   template<int WI, bool SI>
   ac_float(const ac_int<WI,SI> &op) {
-    *this = ac_fixed<WI,WI,SI>(op); 
+    *this = ac_fixed<WI,WI,SI>(op);
   }
 
   inline ac_float( bool b ) { *this = (ac_int<1,false>) b; }
@@ -422,11 +422,11 @@ public:
   // Explicit conversion functions to ac_int and ac_fixed
   inline typename rt_unary::to_ac_fixed_t to_ac_fixed() const {
     typename rt_unary::to_ac_fixed_t r = m;
-    r <<= e; 
+    r <<= e;
     return r;
   }
   inline typename rt_unary::to_ac_int_t to_ac_int() const {
-    return to_ac_fixed().to_ac_int(); 
+    return to_ac_fixed().to_ac_int();
   }
 
   // Explicit conversion functions to C built-in types -------------
@@ -445,9 +445,9 @@ public:
     bool all_sign;
     int ls = m.leading_sign(all_sign);
     bool m_zero = all_sign & !m[0];
-    const int max_shift_left = (1 << (E-1)) + e; 
+    const int max_shift_left = (1 << (E-1)) + e;
     bool normal = ls <= max_shift_left;
-    int shift_l = normal ? ls : max_shift_left; 
+    int shift_l = normal ? ls : max_shift_left;
     m <<= shift_l;
     e = ac_int<1,true>(!m_zero) & (e - shift_l);
     return normal;
@@ -470,7 +470,7 @@ public:
   template<AC_FL_T(2)>
   bool compare(const AC_FL(2) &op2, bool *gt) const {
     typedef ac_fixed<W2,I,S2> fx2_t;
-    typedef typename ac_fixed<W,I,S>::template rt_T< fx2_t >::logic fx_t; 
+    typedef typename ac_fixed<W,I,S>::template rt_T< fx2_t >::logic fx_t;
     typedef ac_fixed<fx_t::width,fx_t::i_width,false> fxu_t;
 
     fx2_t op2_m_0;
@@ -478,16 +478,16 @@ public:
 
     fx_t op1_m = m;
     fx_t op2_m = op2_m_0;
-    int e_dif = exp() - op2.exp() + I - I2; 
+    int e_dif = exp() - op2.exp() + I - I2;
     bool op2_m_neg = op2_m[fx_t::width-1];
     fx_t out_bits = op2_m ^ ((op2_m_neg & e_dif < 0) ? ~fx_t(0) : fx_t(0));
     out_bits &= ~(fxu_t(~fxu_t(0)) << e_dif);
     op2_m >>= e_dif;
-    bool overflow = e_dif < 0 & !!out_bits | op2_m_neg ^ op2_m[fx_t::width-1]; 
+    bool overflow = e_dif < 0 & !!out_bits | op2_m_neg ^ op2_m[fx_t::width-1];
 
     *gt = overflow & op2_m_neg | !overflow & op1_m > op2_m;
     bool eq = op1_m == op2_m & !overflow & !out_bits;
-    return eq; 
+    return eq;
   }
 
   template<AC_FL_T(2), AC_FL_T(R)>
@@ -497,12 +497,12 @@ public:
     typedef ac_fixed<W, IT, true> fx1_t;
     typedef ac_fixed<W2, IT, true> fx2_t;
     // covers fx1_t and r mantissas (adds additional LSBs if WR > W)
-    typedef typename fx1_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx1r_t; 
+    typedef typename fx1_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx1r_t;
     // covers fx2_t and r mantissas (adds additional LSBs if WR > W2)
-    typedef typename fx2_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx2r_t; 
-    // mt_t adds one integer bit for the plus 
+    typedef typename fx2_t::template rt_T< ac_fixed<WR,IT,SR> >::logic fx2r_t;
+    // mt_t adds one integer bit for the plus
     //  op1_m, op2_m, op_sl, sticky_bits
-    typedef typename fx1r_t::template rt_T<fx2r_t>::plus mt_t; 
+    typedef typename fx1r_t::template rt_T<fx2r_t>::plus mt_t;
 
     const bool round_bit_needed = QR != AC_TRN;
     const bool remaining_bits_needed = !(QR == AC_TRN || QR == AC_RND);
@@ -516,20 +516,20 @@ public:
     const int power_smallest_sn2 = I2 - W2 - (1 << (E2-1));
     const int power_smallest_sn_dif1 = AC_MAX(0,power_smallest_sn2 - power_smallest_sn1);
     const int power_smallest_sn_dif2 = AC_MAX(0,power_smallest_sn1 - power_smallest_sn2);
-    const int wc_norm_shift1 = W2-1 + AC_MIN(power_smallest_sn_dif1, W-1); 
-    const int wc_norm_shift2 = W-1 + AC_MIN(power_smallest_sn_dif2, W2-1); 
+    const int wc_norm_shift1 = W2-1 + AC_MIN(power_smallest_sn_dif1, W-1);
+    const int wc_norm_shift2 = W-1 + AC_MIN(power_smallest_sn_dif2, W2-1);
     const int wc_sn_norm_shift = AC_MAX(wc_norm_shift1, wc_norm_shift2);
     const int w_sn_overlap = wc_sn_norm_shift + 1;
 
     // cases when one operand is subnormal and other is shifted right and does not overlap bits
     //   subnormal op could be normalized by width-1 bits
-    const int w_sn_no_overlap1 = W + AC_MIN(w_r_with_round_bits, power_smallest_sn_dif2); 
+    const int w_sn_no_overlap1 = W + AC_MIN(w_r_with_round_bits, power_smallest_sn_dif2);
     const int w_sn_no_overlap2 = W2 + AC_MIN(w_r_with_round_bits, power_smallest_sn_dif1);
     const int w_sn_no_overlap = AC_MAX(w_sn_no_overlap1, w_sn_no_overlap2);
 
     const int w_sn = AC_MAX(w_sn_overlap, w_sn_no_overlap);
 
-    // For example 0100 + (1000 0001 >> 1) = 0000 0000 1,  wc_n_norm_shift = max(4,8) 
+    // For example 0100 + (1000 0001 >> 1) = 0000 0000 1,  wc_n_norm_shift = max(4,8)
     const int msb0h1 = I-1 + (int) MAX_EXP;
     const int msb1h1 = msb0h1-1;
     const int msb0l1 = I-1 + (int) MIN_EXP;
@@ -539,11 +539,11 @@ public:
     const int msb0l2 = I2-1 + (int) op2_t::MIN_EXP;
     const int msb1l2 = msb0h2-1;
     // bit W-1 overlap with bit W2-2
-    const bool msb_overlap1 = msb1h2 >= msb0h1 && msb0h1 <= msb1l2 
+    const bool msb_overlap1 = msb1h2 >= msb0h1 && msb0h1 <= msb1l2
       || msb1h2 >= msb0l1 && msb0l1 <= msb1l2
       || msb0h1 >= msb1h2 && msb1h2 >= msb0l1;
     // bit W2-1 overlap with bit W1-2
-    const bool msb_overlap2 = msb1h1 >= msb0h2 && msb0h2 <= msb1l1 
+    const bool msb_overlap2 = msb1h1 >= msb0h2 && msb0h2 <= msb1l1
       || msb1h1 >= msb0l2 && msb0l2 <= msb1l1
       || msb0h2 >= msb1h1 && msb1h1 >= msb0l2;
     const bool msb_overlap = msb_overlap1 || msb_overlap2;
@@ -552,9 +552,9 @@ public:
     // addition of two numbers of different sign can result in a normalization by 1 (therefore + 1)
     const int w_n_no_msb_overlap = w_r_with_round_bits + 1;
     const int w_n = AC_MAX(w_n_msb_overlap, w_n_no_msb_overlap);
-    
+
     // +1 is to prevent overflow during addition
-    const int tr_t_width = AC_MAX(w_n, w_sn) + 1; 
+    const int tr_t_width = AC_MAX(w_n, w_sn) + 1;
     typedef ac_fixed<tr_t_width,IT+1,true> add_t;
 
     const int min_E = (int) MIN_EXP + I-IT;
@@ -564,7 +564,7 @@ public:
     const int max_E = (int) MAX_EXP + I-IT;
     const int max_E2 = (int) AC_FL(2)::MAX_EXP + I2-IT;
     const int max_ET = AC_MAX(max_E, max_E2);
- 
+
     ac_fixed<mt_t::width, I+1, mt_t::sign> op1_m_0 = m;
     mt_t op1_m = 0;
     op1_m.set_slc(0, op1_m_0.template slc<mt_t::width>(0));
@@ -582,9 +582,9 @@ public:
     int e_dif = op1_e - op2_e;
     bool e1_lt_e2 = e_dif < 0;
     e_dif = (op1_zero | op2_zero) ? 0 : e1_lt_e2 ? -e_dif : e_dif;
-    
+
     add_t op_lshift = e1_lt_e2 ? op1_m : op2_m;
-    mt_t op_no_shift = e1_lt_e2 ? op2_m : op1_m; 
+    mt_t op_no_shift = e1_lt_e2 ? op2_m : op1_m;
 
     bool sticky_bit = false;
     if(remaining_bits_needed) {
@@ -606,35 +606,35 @@ public:
     op1.plus_minus(op2, *this);
     return *this;
   }
- 
+
   template<AC_FL_T(1), AC_FL_T(2)>
   ac_float sub(const AC_FL(1) &op1, const AC_FL(2) &op2) {
     op1.plus_minus(op2, *this, true);
     return *this;
   }
 
-  typename rt_unary::neg abs() const {   
-    typedef typename rt_unary::neg r_t; 
+  typename rt_unary::neg abs() const {
+    typedef typename rt_unary::neg r_t;
     r_t r;
     r.m = is_neg() ? -m : r_t::mant_t(m);
     r.e = e;
     return r;
   }
- 
+
 #ifdef __AC_FLOAT_ENABLE_ALPHA
   // These will be changed!!! For now only enable to explore integration with ac_complex
   template<AC_FL_T(2)>
   typename rt< AC_FL_TV0(2) >::plus operator +(const AC_FL(2) &op2) const {
     typename rt< AC_FL_TV0(2) >::plus r;
-    plus_minus(op2, r); 
+    plus_minus(op2, r);
     return r;
   }
   template<AC_FL_T(2)>
   typename rt< AC_FL_TV0(2) >::minus operator -(const AC_FL(2) &op2) const {
     typename rt< AC_FL_TV0(2) >::minus r;
-    plus_minus(op2, r, true); 
+    plus_minus(op2, r, true);
     return r;
-  } 
+  }
 #endif
 
   template<AC_FL_T(2)>
@@ -648,43 +648,43 @@ public:
   typename rt< AC_FL_TV0(2) >::div operator /(const AC_FL(2) &op2) const {
     typename rt< AC_FL_TV0(2) >::div r(m/op2.m, exp()-op2.exp());
     return r;
-  } 
+  }
   template<AC_FL_T(2)>
   ac_float &operator +=(const AC_FL(2) &op2) {
     ac_float r;
     plus_minus(op2, r);
-    *this = r; 
+    *this = r;
     return *this;
-  } 
+  }
   template<AC_FL_T(2)>
   ac_float &operator -=(const AC_FL(2) &op2) {
     ac_float r;
     plus_minus(op2, r, true);
-    *this = r; 
+    *this = r;
     return *this;
-  } 
+  }
   template<AC_FL_T(2)>
   ac_float &operator *=(const AC_FL(2) &op2) {
     *this = *this * op2;
     return *this;
-  } 
+  }
   template<AC_FL_T(2)>
   ac_float &operator /=(const AC_FL(2) &op2) {
     *this = *this / op2;
     return *this;
-  } 
+  }
   ac_float operator + () const {
     return *this;
-  } 
+  }
   typename rt_unary::neg operator - () const {
     typename rt_unary::neg r;
-    r.m = -m; 
+    r.m = -m;
     r.e = e;
-    return r; 
-  } 
+    return r;
+  }
   bool operator ! () const {
     return !m;
-  } 
+  }
 
   // Shift --------------------------------------------------------------------
   template<int WI, bool SI>
@@ -717,41 +717,41 @@ public:
   bool operator == (const AC_FL(2) &f) const {
     bool gt;
     return compare(f, &gt);
-  } 
+  }
   template<AC_FL_T(2)>
   bool operator != (const AC_FL(2) &f) const {
-    return !operator == (f); 
-  } 
+    return !operator == (f);
+  }
   template<AC_FL_T(2)>
   bool operator < (const AC_FL(2) &f) const {
     bool gt;
     bool eq = compare(f, &gt);
-    return !(eq | gt); 
-  } 
+    return !(eq | gt);
+  }
   template<AC_FL_T(2)>
   bool operator >= (const AC_FL(2) &f) const {
     return !operator < (f);
-  } 
+  }
   template<AC_FL_T(2)>
   bool operator > (const AC_FL(2) &f) const {
     bool gt;
     compare(f, &gt);
-    return gt; 
-  } 
+    return gt;
+  }
   template<AC_FL_T(2)>
   bool operator <= (const AC_FL(2) &f) const {
     return !operator > (f);
-  } 
+  }
 
   inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false, bool hw=true) const {
     // TODO: printing decimal with exponent
     if(!hw) {
       ac_fixed<W,0,S> mantissa;
-      mantissa.set_slc(0, m.template slc<W>(0)); 
+      mantissa.set_slc(0, m.template slc<W>(0));
       std::string r = mantissa.to_string(base_rep, sign_mag);
       r += "e2";
       r += (e + I).to_string(base_rep, sign_mag | base_rep == AC_DEC);
-      return r; 
+      return r;
     } else {
       std::string r = m.to_string(base_rep, sign_mag);
       if(base_rep != AC_DEC)
@@ -763,7 +763,7 @@ public:
         r += e.to_string(base_rep, sign_mag | base_rep == AC_DEC);
       else
         r += "0";
-      return r; 
+      return r;
     }
   }
 
@@ -801,10 +801,10 @@ namespace ac_private {
     if(!nan) {
       T d = x - x;
       inf = !(d==d);
-    } 
+    }
     return nan;
   }
- 
+
   inline ac_float_cdouble_t double_to_ac_float(double d) {
     typedef ac_float_cdouble_t r_t;
 #ifndef __SYNTHESIS__
@@ -817,7 +817,7 @@ namespace ac_private {
 #endif
     r_t::exp_t exp;
     r_t::mant_t mant = ac::frexp_d(d, exp);
-    return r_t(mant, exp, false);   
+    return r_t(mant, exp, false);
   }
 
   inline ac_float_cfloat_t float_to_ac_float(float f) {
@@ -832,7 +832,7 @@ namespace ac_private {
 #endif
     r_t::exp_t exp;
     r_t::mant_t mant = ac::frexp_f(f, exp);
-    return r_t(mant, exp, false);   
+    return r_t(mant, exp, false);
   }
 };
 
@@ -840,7 +840,7 @@ namespace ac {
   template<typename T>
   struct ac_float_represent {
     typedef typename ac_fixed_represent<T>::type fx_t;
-    typedef ac_float<fx_t::width+!fx_t::sign,fx_t::i_width+!fx_t::sign,1,fx_t::q_mode> type; 
+    typedef ac_float<fx_t::width+!fx_t::sign,fx_t::i_width+!fx_t::sign,1,fx_t::q_mode> type;
   };
   template<> struct ac_float_represent<float> {
     typedef ac_private::ac_float_cfloat_t type;
@@ -965,10 +965,17 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
     return op.operator ASSIGN_OP (fl2_t(op2));  \
   }
 
-#define FL_OPS_WITH_CTYPE(C_TYPE) \
-  FL_BIN_OP_WITH_CTYPE(*, C_TYPE, mult) \
+#ifdef __AC_FLOAT_ENABLE_ALPHA
+#define FL_BIN_OP_WITH_CTYPE_ALPHA(C_TYPE) \
   FL_BIN_OP_WITH_CTYPE(+, C_TYPE, plus) \
-  FL_BIN_OP_WITH_CTYPE(-, C_TYPE, minus) \
+  FL_BIN_OP_WITH_CTYPE(-, C_TYPE, minus)
+#else
+#define FL_BIN_OP_WITH_CTYPE_ALPHA(C_TYPE)
+#endif
+
+#define FL_OPS_WITH_CTYPE(C_TYPE) \
+  FL_BIN_OP_WITH_CTYPE_ALPHA(C_TYPE) \
+  FL_BIN_OP_WITH_CTYPE(*, C_TYPE, mult) \
   FL_BIN_OP_WITH_CTYPE(/, C_TYPE, div) \
   \
   FL_REL_OP_WITH_CTYPE(==, C_TYPE) \
@@ -1007,7 +1014,7 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
   FL_OPS_WITH_CTYPE(C_TYPE) \
   FL_SHIFT_OPS_WITH_INT_CTYPE(C_TYPE)
 
-// --------------------------------------- End of Macros for Binary Operators with C Floats 
+// --------------------------------------- End of Macros for Binary Operators with C Floats
 
     // Binary Operators with C Floats --------------------------------------------
     FL_OPS_WITH_CTYPE(float)
@@ -1024,7 +1031,7 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
     FL_OPS_WITH_INT_CTYPE(unsigned long)
     FL_OPS_WITH_INT_CTYPE(Slong)
     FL_OPS_WITH_INT_CTYPE(Ulong)
-    // -------------------------------------- End of Binary Operators with C Floats 
+    // -------------------------------------- End of Binary Operators with C Floats
 
 // Macros for Binary Operators with ac_int --------------------------------------------
 
@@ -1063,14 +1070,16 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
   inline AC_FL() &operator ASSIGN_OP ( AC_FL() &op, const ac_int<WI,SI> &op2) {  \
     typedef typename ac::template ac_float_represent< ac_int<WI,SI> >::type fl2_t; \
     return op.operator ASSIGN_OP (fl2_t(op2));  \
-  }  
+  }
 
 // -------------------------------------------- End of Macros for Binary Operators with ac_int
 
     // Binary Operators with ac_int --------------------------------------------
-    FL_BIN_OP_WITH_AC_INT(*, mult)
+#ifdef __AC_FLOAT_ENABLE_ALPHA
     FL_BIN_OP_WITH_AC_INT(+, plus)
     FL_BIN_OP_WITH_AC_INT(-, minus)
+#endif
+    FL_BIN_OP_WITH_AC_INT(*, mult)
     FL_BIN_OP_WITH_AC_INT(/, div)
 
     FL_REL_OP_WITH_AC_INT(==)
@@ -1085,7 +1094,7 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
     FL_ASSIGN_OP_WITH_AC_INT(*=)
     FL_ASSIGN_OP_WITH_AC_INT(/=)
     FL_ASSIGN_OP_WITH_AC_INT(%=)
-    // -------------------------------------- End of Binary Operators with ac_int 
+    // -------------------------------------- End of Binary Operators with ac_int
 
 // Macros for Binary Operators with ac_fixed --------------------------------------------
 
@@ -1129,9 +1138,11 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
 // -------------------------------------------- End of Macros for Binary Operators with ac_fixed
 
     // Binary Operators with ac_fixed --------------------------------------------
-    FL_BIN_OP_WITH_AC_FIXED(*, mult)
+#ifdef __AC_FLOAT_ENABLE_ALPHA
     FL_BIN_OP_WITH_AC_FIXED(+, plus)
     FL_BIN_OP_WITH_AC_FIXED(-, minus)
+#endif
+    FL_BIN_OP_WITH_AC_FIXED(*, mult)
     FL_BIN_OP_WITH_AC_FIXED(/, div)
 
     FL_REL_OP_WITH_AC_FIXED(==)
@@ -1145,7 +1156,7 @@ inline std::ostream& operator << (std::ostream &os, const AC_FL() &x) {
     FL_ASSIGN_OP_WITH_AC_FIXED(-=)
     FL_ASSIGN_OP_WITH_AC_FIXED(*=)
     FL_ASSIGN_OP_WITH_AC_FIXED(/=)
-    // -------------------------------------- End of Binary Operators with ac_fixed 
+    // -------------------------------------- End of Binary Operators with ac_fixed
 
 // Global templatized functions for easy initialization to special values
 template<ac_special_val V, AC_FL_T()>
@@ -1156,7 +1167,7 @@ inline AC_FL() value( AC_FL() ) {
 
 namespace ac {
 // function to initialize (or uninitialize) arrays
-  template<ac_special_val V, AC_FL_T() > 
+  template<ac_special_val V, AC_FL_T() >
   inline bool init_array( AC_FL() *a, int n) {
     AC_FL0() t;
     t.template set_val<V>();
@@ -1172,10 +1183,10 @@ namespace ac {
 #pragma warning( pop )
 #endif
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
-#pragma GCC diagnostic pop 
+#pragma GCC diagnostic pop
 #endif
 #if defined(__clang__)
-#pragma clang diagnostic pop 
+#pragma clang diagnostic pop
 #endif
 
 #ifdef __AC_NAMESPACE
