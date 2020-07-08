@@ -1205,6 +1205,7 @@ public:
   }
   ac_std_float &operator *=(const ac_std_float &op2) {
     *this = operator *(op2);
+    return *this;
   }
   ac_std_float &operator /=(const ac_std_float &op2) {
     *this = operator /(op2);
