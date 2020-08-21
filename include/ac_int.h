@@ -1973,7 +1973,11 @@ public:
 
   template<int W2, bool S2> friend class ac_int;
   template<int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2> friend class ac_fixed;
-  ac_int() {
+  ac_int()
+#if !defined(__SYNTHESIS__)
+      : ConvBase(0)
+#endif
+  {
 #if !defined(__SYNTHESIS__) && defined(AC_DEFAULT_IN_RANGE)
     bit_adjust();
 #endif
