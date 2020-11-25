@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.0                                                 *
+ *  Software Version: 4.1                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 13 12:35:18 PDT 2020                        *
+ *  Release Date    : Wed Nov 25 10:19:44 PST 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.0.0                                               *
+ *  Release Build   : 4.1.0                                               *
  *                                                                        *
  *  Copyright 2005-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -484,7 +484,7 @@ public:
 
   inline int length() const { return W; }
 
-  inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false) const {
+  inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false, bool pad_to_width = false) const {
     // base_rep == AC_DEC => sign_mag == don't care (always print decimal in sign magnitude)
     char r[(W-AC_MIN(AC_MIN(W-I,I),0)+31)/32*32+5] = {0};
     int i = 0;
@@ -499,14 +499,16 @@ public:
     ac_fixed<W+1, I+1, true> t;
     if( (base_rep == AC_DEC || sign_mag) && is_neg() )
       t = operator -();
+    else if(pad_to_width)
+      t = ac_fixed<W,I,false>(*this);
     else
       t = *this;
     ac_fixed<AC_MAX(I+1,1),AC_MAX(I+1,1),true> i_part = t;
     ac_fixed<AC_MAX(W-I,1),0,false> f_part = t;
-    i += ac_private::to_string(i_part.v, AC_MAX(I+1,1), sign_mag, base_rep, false, r+i);
+    i += ac_private::to_string(i_part.v, AC_MAX(I+!pad_to_width,1), sign_mag, base_rep, false, pad_to_width, r+i);
     if(W-I > 0) {
       r[i++] = '.';
-      if(!ac_private::to_string(f_part.v, W-I, false, base_rep, true, r+i))
+      if(!ac_private::to_string(f_part.v, W-I, false, base_rep, true, pad_to_width, r+i))
         r[--i] = 0;
     }
     if(!i) {
@@ -631,7 +633,7 @@ public:
     return t;
   }
   // Arithmetic Unary --------------------------------------------------------
-  ac_fixed operator +() {
+  ac_fixed operator +() const {
     return *this;
   }
   typename rt_unary::neg operator -() const {

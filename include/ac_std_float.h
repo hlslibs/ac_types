@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.0                                                 *
+ *  Software Version: 4.1                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 13 12:35:18 PDT 2020                        *
+ *  Release Date    : Wed Nov 25 10:19:44 PST 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.0.0                                               *
+ *  Release Build   : 4.1.0                                               *
  *                                                                        *
  *  Copyright 2018-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -426,7 +426,6 @@ public:
 
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   ac_fixed<WFX,IFX,SFX,QFX,OFX> convert_to_ac_fixed(bool map_inf=false) const {
-    static const bool rnd = QFX!=AC_TRN && QFX!=AC_TRN_ZERO;
     static const bool need_rnd_bit = QFX != AC_TRN;
     static const bool need_rem_bits = need_rnd_bit && QFX != AC_RND;
     static const bool need_ovf = OFX != AC_WRAP;
@@ -648,6 +647,7 @@ public:
     *this = ac_std_float(ac_fixed<64,64,true>(x));
   }
   const ac_int<W,true> &data() const { return d; }
+  const ac_int<W,true> &data_ac_int() const { return d; }
   void set_data(const ac_int<W,true> &data, bool assert_on_nan=false, bool assert_on_inf=false) {
     d = data;
     if(assert_on_nan)
@@ -712,6 +712,8 @@ public:
     fx = inf ? (sign ? value<AC_VAL_MIN>(fx) : value<AC_VAL_MAX>(fx)) : fx;
     return ac_float<mant_bits+2,2,E,AC_TRN>(fx, e, false);
   }
+  template<ac_ieee_float_format Format>
+  ac_ieee_float<Format> to_ac_ieee_float() const;
   float to_float() const {
     ac_std_float<32,8> t(*this);
     float f;
@@ -768,10 +770,10 @@ public:
     mu_t op1_mu, op2_mu;
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
     m_t op1_m = op1_sign ? m_t(-op1_mu) : m_t(op1_mu);
-    op1_m &= m_t(No_SubNormals & op1_zero ? 0 : -1);
+    op1_m &= m_t((No_SubNormals & op1_zero) ? 0 : -1);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
     m_t op2_m = op2_sign ? m_t(-op2_mu) : m_t(op2_mu);
-    op2_m &= m_t(No_SubNormals & op2_zero ? 0 : -1);
+    op2_m &= m_t((No_SubNormals & op2_zero) ? 0 : -1);
 
     unsigned op1_e_b = ac_int<E,false>(op1_e) + !op1_normal;
     unsigned op2_e_b = ac_int<E,false>(op2_e) + !op2_normal;
@@ -787,7 +789,7 @@ public:
 
     op_lshift >>= (unsigned) e_dif;
     add_t add_r = op_lshift + op_no_shift;
-    int exp = ( (e1_lt_e2 & !op2_zero) | op1_zero ? op2_e_b : op1_e_b);
+    int exp = ( ((e1_lt_e2 & !op2_zero) | op1_zero) ? op2_e_b : op1_e_b);
     bool all_sign;
     int ls = add_r.leading_sign(all_sign);
     bool r_zero = !add_r[0] & all_sign;
@@ -800,7 +802,7 @@ public:
     ac_fixed<mu_bits+1,mu_bits+2,true,QR> r_rnd = add_r;
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.to_ac_int();
-    bool rnd_ovf = QR == AC_RND_CONV && t == t_h(-1);
+    bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && t == t_h(-1);
     bool r_sign = r_rnd[mu_bits] ^ rnd_ovf;
     bool shift_r = rnd_ovf | (r_sign & !r_rnd.template slc<mu_bits>(0));
     r_un_t r_un =  r_sign ? (r_un_t) -r_rnd : (r_un_t) r_rnd;
@@ -885,7 +887,7 @@ public:
       p_bef_rnd[0] = !!p_l;
       r_rnd = p_bef_rnd;
       m_r = r_rnd.template slc<mant_bits>(0);
-      bool rnd_ovf = QR == AC_RND_CONV && p_h == t_h(-1);
+      bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && p_h == t_h(-1);
       exp += rnd_ovf;
       r_inf |= (exp_is_max & (!shift_l_1 | rnd_ovf)) | (exp_is_max_m1 & !shift_l_1 & rnd_ovf);
       r_normal = r_rnd[mant_bits] | rnd_ovf;
@@ -1027,7 +1029,7 @@ public:
     bool mult_nan = op1_nan | op2_nan | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_zero = op1_zero | op2_zero;  // mult_nan has precedence later on
     int mult_exp_b = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
-    mult_exp_b |= ac_int<E,false>( op1_inf | op2_inf ? -1 : 0 );
+    mult_exp_b |= ac_int<E,false>( (op1_inf | op2_inf) ? -1 : 0 );
     ac_int<2*mu_bits,false> p = op1_mu * op2_mu;
     if(No_SubNormals)
       p &= ac_int<2*mu_bits,false>(mult_zero ? 0 : -1);
@@ -1056,7 +1058,7 @@ public:
 
     op_lshift >>= (unsigned) e_dif;
     add_t add_r = op_lshift + op_no_shift;
-    int exp = ( (emult_lt_e3 & !op3_zero) | mult_zero ? op3_e_b : mult_exp_b);
+    int exp = ( ((emult_lt_e3 & !op3_zero) | mult_zero) ? op3_e_b : mult_exp_b);
 
     bool all_sign;
     int ls = add_r.leading_sign(all_sign);
@@ -1071,7 +1073,7 @@ public:
 
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.template slc<mu_bits+1>(mu_bits+2);
-    bool rnd_ovf = QR == AC_RND_CONV && !add_r[2*mu_bits+3] && t == t_h(-1);
+    bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && !add_r[2*mu_bits+3] && t == t_h(-1);
     bool r_neg = r_rnd[mu_bits] ^ rnd_ovf;
     bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : r_neg ^ toggle_r_sign;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
@@ -1205,6 +1207,7 @@ public:
   }
   ac_std_float &operator *=(const ac_std_float &op2) {
     *this = operator *(op2);
+    return *this;
   }
   ac_std_float &operator /=(const ac_std_float &op2) {
     *this = operator /(op2);
@@ -1374,7 +1377,22 @@ public:
 template<int W, int E>
 inline std::ostream& operator << (std::ostream &os, const ac_std_float<W,E> &x) {
   // for now just print the raw ac_int for it
-  os << x.data().to_string(AC_HEX);
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data().to_string(AC_OCT,false,true);
+  } else {
+    if(W <= 32 && E <= 8) {
+      os << x.to_float();
+    } else if(W <= 64 && E <= 11) {
+      os << x.to_double();
+    } else {
+      // operator << for decimal not yet implemented for ac_std_float with W > 64 or E > 11
+      os << x.data().to_string(AC_HEX,false,true);
+    }
+  }
+#endif
   return os;
 }
 
@@ -1448,8 +1466,17 @@ public:
 
 template<ac_ieee_float_format Format>
 inline std::ostream& operator << (std::ostream &os, const ac_ieee_float_base<Format> &x) {
-  // for now print the 128 and 256 as raw ac_int
-  os << x.data_ac_int().to_string(AC_HEX);
+  const int w = ac_ieee_float_base<Format>::width;
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data_ac_int().to_string(AC_OCT,false,true);
+  } else {
+    // operator << for decimal not yet implemented for either ieee 128 or 256
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  }
+#endif
   return os;
 }
 
@@ -1498,7 +1525,15 @@ public:
 };
 
 inline std::ostream& operator << (std::ostream &os, const ac_ieee_float_base<binary16> &x) {
-  os << x.to_float();
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data_ac_int().to_string(AC_OCT,false,true);
+  } else {
+    os << x.to_float();
+  }
+#endif
   return os;
 }
 
@@ -1563,6 +1598,7 @@ struct float_helper {
   float_helper floor() const { return float_helper(std::floor(d)); }
   float_helper trunc() const { return float_helper(::truncf(d)); }
   float_helper round() const { return float_helper(::roundf(d)); }
+  bool operator !() const { return !d; }
 };
 
 template<> class ac_ieee_float_base<binary32> {
@@ -1624,7 +1660,15 @@ public:
 };
 
 inline std::ostream& operator << (std::ostream &os, const ac_ieee_float_base<binary32> &x) {
-  os << x.to_float();
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data_ac_int().to_string(AC_OCT,false,true);
+  } else {
+    os << x.to_float();
+  }
+#endif
   return os;
 }
 
@@ -1691,6 +1735,7 @@ struct double_helper {
   double_helper floor() const { return double_helper(std::floor(d)); }
   double_helper trunc() const { return double_helper(::trunc(d)); }
   double_helper round() const { return double_helper(::round(d)); }
+  bool operator !() const { return !d; }
 };
 
 template<> class ac_ieee_float_base<binary64> {
@@ -1752,7 +1797,15 @@ public:
 };
 
 inline std::ostream& operator << (std::ostream &os, const ac_ieee_float_base<binary64> &x) {
-  os << x.to_double();
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data_ac_int().to_string(AC_OCT,false,true);
+  } else {
+    os << x.to_double();
+  }
+#endif
   return os;
 }
 
@@ -1947,6 +2000,7 @@ public:
     return Base::to_helper_t() <= op2.Base::to_helper_t();
   }
 
+  bool operator !() const { return !Base::to_helper_t(); }
   ac_ieee_float operator -() const {
     ac_ieee_float r(*this);
     r.set_signbit(!this->signbit());
@@ -1962,7 +2016,7 @@ public:
   }
   ac_ieee_float copysign(const ac_ieee_float &op2) const {
     ac_ieee_float r(*this);
-    r.set_signbit(this->signbit());
+    r.set_signbit(op2.signbit());
     return r;
   }
   bool signbit() const { return Base::signbit(); }
@@ -1997,6 +2051,10 @@ inline std::ostream& operator << (std::ostream &os, const ac_ieee_float<Format> 
   os << (const ac_ieee_float_base<Format>&) x;
   return os;
 }
+
+template<int W, int E>
+template<ac_ieee_float_format Format>
+ac_ieee_float<Format> ac_std_float<W,E>::to_ac_ieee_float() const { return ac_ieee_float<Format>(*this); }
 
 namespace ac {
 class bfloat16 {
@@ -2065,6 +2123,8 @@ public:
     x.set_data(d);
     return x;
   }
+  template<ac_ieee_float_format Format>
+  ac_ieee_float<Format> to_ac_ieee_float() const { return ac_ieee_float<Format>(*this); }
   const ac_float_t to_ac_float() const {
     return ac_std_float_t().to_ac_float();
   }
@@ -2194,6 +2254,7 @@ public:
     return to_helper_t() <= op2.to_helper_t();
   }
 
+  bool operator !() const { return !(d & 0x7fff); }
   bfloat16 operator -() const {
     bfloat16 r(*this);
     r.set_signbit(!this->signbit());
@@ -2209,7 +2270,7 @@ public:
   }
   bfloat16 copysign(const bfloat16 &op2) const {
     bfloat16 r(*this);
-    r.set_signbit(this->signbit());
+    r.set_signbit(op2.signbit());
     return r;
   }
   bool signbit() const { return d < 0; }
@@ -2225,7 +2286,15 @@ public:
 };
 
 inline std::ostream& operator << (std::ostream &os, const ac::bfloat16 &x) {
-  os << x.to_float();
+#ifndef __SYNTHESIS__
+  if ((os.flags() & std::ios::hex) != 0) {
+    os << x.data_ac_int().to_string(AC_HEX,false,true);
+  } else if ((os.flags() & std::ios::oct) != 0) {
+    os << x.data_ac_int().to_string(AC_OCT,false,true);
+  } else {
+    os << x.to_float();
+  }
+#endif
   return os;
 }
 

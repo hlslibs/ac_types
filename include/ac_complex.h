@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.0                                                 *
+ *  Software Version: 4.1                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 13 12:35:18 PDT 2020                        *
+ *  Release Date    : Wed Nov 25 10:19:44 PST 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.0.0                                               *
+ *  Release Build   : 4.1.0                                               *
  *                                                                        *
  *  Copyright 2008-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -187,7 +187,7 @@ public:
   }
 
   // Arithmetic Unary --------------------------------------------------------
-  ac_complex operator +() {
+  ac_complex operator +() const {
     return *this;
   }
   typename rt_unary::neg operator -() const {

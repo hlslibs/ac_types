@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.0                                                 *
+ *  Software Version: 4.1                                                 *
  *                                                                        *
- *  Release Date    : Sat Jun 13 12:35:18 PDT 2020                        *
+ *  Release Date    : Wed Nov 25 10:19:44 PST 2020                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.0.0                                               *
+ *  Release Build   : 4.1.0                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -46,7 +46,7 @@
 //   - Most frequent migration issues:
 //      - need to cast to common type when using question mark operator:
 //          (a < 0) ? -a : a;  // a is ac_int<W,true>
-//        change to:
+//        change :
 //          (a < 0) ? -a : (ac_int<W+1,true>) a;
 //        or
 //          (a < 0) ? (ac_int<W+1,false>) -a : (ac_int<W+1,false>) a;
@@ -64,8 +64,8 @@
 #ifndef __AC_INT_H
 #define __AC_INT_H
 
-#define AC_VERSION 3
-#define AC_VERSION_MINOR 9
+#define AC_VERSION 4
+#define AC_VERSION_MINOR 1
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
@@ -85,8 +85,8 @@
 #endif
 
 // for safety
-#if (defined(N) || defined(N2))
-#error One or more of the following is defined: N, N2. Definition conflicts with their usage as template parameters.
+#if (defined(N) || defined(N2) || defined(D) || defined(Q) || defined(R))
+#error One or more of the following is defined: N, N2, D, Q, R. Definition conflicts with their usage as template parameters.
 #error DO NOT use defines before including third party header files.
 #endif
 
@@ -828,6 +828,10 @@ namespace ac_private {
     }
   }
 
+  inline Slong conv_to_Slong(const int *x) {
+    return (Slong) ( ((Ulong) x[1] << 32) | (unsigned) x[0] );
+  }
+
   template<int N1, int Num_s, int N2, int Den_s, int Nr>
   inline void iv_div(const int *op1, const int *op2, int *r) {
     enum { N1_over = N1+(Den_s && (Num_s==2)) };
@@ -836,17 +840,17 @@ namespace ac_private {
       iv_extend<Nr-N1>(r+1, ((Num_s || Den_s) && (r[0] < 0)) ? ~0 : 0);
     }
     else if(N1_over==1 && N2==2)
-      iv_assign_int64<Nr>(r, ( (Slong) op1[0]) / (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+      iv_assign_int64<Nr>(r, ((Slong) op1[0]) / conv_to_Slong(op2) );
     else if(N1_over==2 && N2==1)
       if(N1 == 1)
-        iv_assign_int64<Nr>(r, ( (Slong) op1[0]) / ( (Slong) op2[0]) );
+        iv_assign_int64<Nr>(r, ((Slong) op1[0]) / ((Slong) op2[0]) );
       else
-        iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) / ( (Slong) op2[0]) );
+        iv_assign_int64<Nr>(r, conv_to_Slong(op1) / ((Slong) op2[0]) );
     else if(N1_over==2 && N2==2)
       if(N1 == 1)
-        iv_assign_int64<Nr>(r, ( (Slong) op1[0]) / (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+        iv_assign_int64<Nr>(r, ((Slong) op1[0]) / conv_to_Slong(op2) );
       else
-        iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) / (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+        iv_assign_int64<Nr>(r, conv_to_Slong(op1) / conv_to_Slong(op2) );
     else if(!Num_s && !Den_s) {
       iv_udiv<N1,N2,Nr,0,int,unsigned,Slong,Ulong,16>(op1, op2, r, 0);
     }
@@ -875,17 +879,17 @@ namespace ac_private {
       iv_extend<Nr-1>(r+1, Num_s && r[0] < 0 ? ~0 : 0);
     }
     else if(N1_over==1 && N2==2)
-      iv_assign_int64<Nr>(r, ( (Slong) op1[0]) % (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+      iv_assign_int64<Nr>(r, ((Slong) op1[0]) % conv_to_Slong(op2) );
     else if(N1_over==2 && N2==1)
       if(N1 == 1)
-        iv_assign_int64<Nr>(r, ( (Slong) op1[0]) % ( (Slong) op2[0]) );
+        iv_assign_int64<Nr>(r, ((Slong) op1[0]) % ((Slong) op2[0]) );
       else
-        iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) % ( (Slong) op2[0]) );
+        iv_assign_int64<Nr>(r, conv_to_Slong(op1) % ((Slong) op2[0]) );
     else if(N1_over==2 && N2==2)
       if(N1 == 1)
-        iv_assign_int64<Nr>(r, ( (Slong) op1[0]) % (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+        iv_assign_int64<Nr>(r, ((Slong) op1[0]) % conv_to_Slong(op2) );
       else
-        iv_assign_int64<Nr>(r, (((Slong) op1[1] << 32) | (unsigned) op1[0]) % (((Slong) op2[1] << 32) | (unsigned) op2[0]) );
+        iv_assign_int64<Nr>(r, conv_to_Slong(op1) % conv_to_Slong(op2) );
     else if(!Num_s && !Den_s) {
       iv_udiv<N1,N2,0,Nr,int,unsigned,Slong,Ulong,16>(op1, op2, 0, r);
     }
@@ -1250,10 +1254,10 @@ namespace ac_private {
     return k;
   }
 
-  inline int to_string(int *v, int w, bool sign_mag, ac_base_mode base, bool left_just, char *r) {
-    int n = (w+31) >> 5;
-    bool neg = !sign_mag && v[n-1] < 0;
-    if(!left_just) {
+  inline int to_string(int *v, int w, bool sign_mag, ac_base_mode base, bool left_just, bool pad_to_width, char *r) {
+    if(!left_just && !pad_to_width) {
+      int n = (w+31) >> 5;
+      bool neg = !sign_mag && v[n-1] < 0;
       while(n-- && v[n] == (neg ? ~0 : 0)) {}
       int w2 = 32*(n+1);
       if(w2) {
@@ -2059,8 +2063,9 @@ public:
 
   inline int length() const { return W; }
 
-  inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false) const {
+  inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false, bool pad_to_width = false) const {
     // base_rep == AC_DEC => sign_mag == don't care (always print decimal in sign magnitude)
+    // base_rep == AC_DEC => pad_to_width == don't care 
     char r[N*32+4] = {0};
     int i = 0;
     if(sign_mag)
@@ -2074,10 +2079,13 @@ public:
     int str_w;
     if( (base_rep == AC_DEC || sign_mag) && is_neg() ) {
       ac_int<W, false>  mag = operator -();
-      str_w = ac_private::to_string(mag.v, W+1, sign_mag, base_rep, false, r+i);
+      str_w = ac_private::to_string(mag.v, W+!pad_to_width, sign_mag, base_rep, false, pad_to_width, r+i);
+    } else if(pad_to_width) {
+      ac_int<W,false> tmp = *this;
+      str_w = ac_private::to_string(tmp.v, W, sign_mag, base_rep, false, true, r+i);
     } else {
       ac_int<W,S> tmp = *this;
-      str_w = ac_private::to_string(tmp.v, W+!S, sign_mag, base_rep, false, r+i);
+      str_w = ac_private::to_string(tmp.v, W+!S, sign_mag, base_rep, false, false, r+i);
     }
     if(!str_w) {
       r[i] = '0';
@@ -2212,7 +2220,7 @@ public:
     return t;
   }
   // Arithmetic Unary --------------------------------------------------------
-  ac_int operator +() {
+  ac_int operator +() const {
     return *this;
   }
   typename rt_unary::neg operator -() const {
