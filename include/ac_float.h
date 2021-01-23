@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.1                                                 *
+ *  Software Version: 4.2                                                 *
  *                                                                        *
- *  Release Date    : Wed Nov 25 10:19:44 PST 2020                        *
+ *  Release Date    : Sat Jan 23 14:56:21 PST 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.1.0                                               *
+ *  Release Build   : 4.2.1                                               *
  *                                                                        *
  *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -389,8 +389,8 @@ public:
       e &= ac_int<1,true>(!!m);
   }
 
-  template<int WFX, int IFX, bool SFX, int E2>
-  ac_float(const ac_fixed<WFX,IFX,SFX> &m2, const ac_int<E2,true> &e2, bool normalize=true) {
+  template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX, int E2>
+  ac_float(const ac_fixed<WFX,IFX,SFX, QFX, OFX> &m2, const ac_int<E2,true> &e2, bool normalize=true) {
     enum { WF2 = WFX+!SFX, IF2 = IFX+!SFX };
     ac_float<WF2,IF2,E2>  f(ac_fixed<WF2,IF2,true>(m2), e2, normalize);
     *this = f;
