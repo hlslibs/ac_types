@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 4.2                                                 *
  *                                                                        *
- *  Release Date    : Sat Jan 23 14:56:21 PST 2021                        *
+ *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.1                                               *
+ *  Release Build   : 4.2.2                                               *
  *                                                                        *
- *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -199,7 +199,7 @@ class pp_ac_complex:
     def to_string(self):
         r = self.val["_r"]
         i = self.val["_i"]
-        return r.to_string() + " + j " + i.to_string()
+        return "(" + str(r) + " + j " + str(i) +")"
 
 def read_slice_r(val, msb):
     p2 = 2 ** msb 

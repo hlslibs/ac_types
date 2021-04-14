@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.2                                                 *
  *                                                                        *
- *  Release Date    : Sat Jan 23 14:56:21 PST 2021                        *
+ *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.1                                               *
+ *  Release Build   : 4.2.2                                               *
  *                                                                        *
  *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -834,7 +834,7 @@ namespace ac_private {
     r_t::mant_t mant = ac::frexp_f(f, exp);
     return r_t(mant, exp, false);
   }
-};
+}
 
 namespace ac {
   template<typename T>

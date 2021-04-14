@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 4.2                                                 *
  *                                                                        *
- *  Release Date    : Sat Jan 23 14:56:21 PST 2021                        *
+ *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.1                                               *
+ *  Release Build   : 4.2.2                                               *
  *                                                                        *
- *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 4
-#define AC_VERSION_MINOR 1
+#define AC_VERSION_MINOR 2
 
 #ifndef __cplusplus
 #error C++ is required to include this header file

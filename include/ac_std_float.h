@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 4.2                                                 *
  *                                                                        *
- *  Release Date    : Sat Jan 23 14:56:21 PST 2021                        *
+ *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.1                                               *
+ *  Release Build   : 4.2.2                                               *
  *                                                                        *
- *  Copyright 2018-2020, Mentor Graphics Corporation,                     *
+ *  Copyright 2018-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -142,6 +142,38 @@ namespace ac_private {
   struct rt_closed_T<T,T> {
     typedef T type;
   };
+
+  template<bool PosWidth, bool Constrained>
+  struct LeadingSignConstrained {
+    template<int MaxLShift, int W, bool S>
+    static unsigned val(const ac_int<W,S> &x, bool &all_sign) {
+      all_sign = x == ac_int<1,S>(x[0]);
+      return 0;
+    }
+  };
+  template<> struct LeadingSignConstrained<true,false> {
+    template<int MaxLShift, int W, bool S>
+    static unsigned val(const ac_int<W,S> &x, bool &all_sign) {
+      return x.leading_sign(all_sign);
+    }
+  };
+  template<> struct LeadingSignConstrained<true,true> {
+    template<int MaxLShift, int W, bool S>
+    static unsigned val(const ac_int<W,S> &x, bool &all_sign) {
+      const int lsW = MaxLShift+S;
+      ac_int<lsW,S> x_h = x >> (W-lsW);
+      ac_int<W-lsW,S> x_l = x;
+      unsigned ls = x_h.leading_sign(all_sign);
+      all_sign &= x_l == ac_int<1,S>(x[W-1]);
+      return ls;
+    }
+  };
+  template<int MaxLShift, int W, bool S>
+  unsigned leading_sign_constrained(const ac_int<W,S> &x, bool &all_sign) {
+    const bool pos_width = MaxLShift > S;
+    const bool constrained = MaxLShift < W-S;
+    return LeadingSignConstrained<pos_width,constrained>::template val<MaxLShift>(x, all_sign);
+  }
 }
 
 namespace ac {
@@ -435,13 +467,13 @@ public:
     mu_t f_mu;
     e_t f_e;
     extract(f_mu, f_e, f_sign, f_normal, f_zero, f_inf, f_nan);
-    if(map_inf) {
+    if(map_inf && f_inf) {
       ac_fixed<WFX,IFX,SFX,QFX,OFX> rv;
       if(f_sign)
         rv.template set_val<AC_VAL_MIN>();
       else
         rv.template set_val<AC_VAL_MAX>();
-      return rv; 
+      return rv;
     }
     AC_ASSERT(!f_inf && !f_nan, "Expects finite float (not Nan or Inf)");
     m_t f_m = f_sign ? m_t(-f_mu) : m_t(f_mu);
@@ -485,6 +517,17 @@ public:
     ac_fixed<WFX,IFX,SFX,QFX,OFX> r = 0;
     r.set_slc(0,ri.template slc<WFX>(0));
     return r;
+  }
+
+  template<int WI, bool SI>
+  ac_int<WI,SI> convert_to_ac_int(bool map_inf=false) const {
+    return convert_to_ac_fixed<WI,WI,SI,AC_TRN_ZERO,AC_WRAP>(map_inf).to_ac_int();
+  }
+  int convert_to_int(bool map_inf=false) const {
+    return convert_to_ac_int<32,true>(map_inf).to_int();
+  }
+  long long convert_to_int64(bool map_inf=false) const {
+    return convert_to_ac_int<64,true>(map_inf).to_int64();
   }
 
   template<int W2>
@@ -538,11 +581,15 @@ public:
     ac_int<r_mant_bits,false> r_m = r_rnd.template slc<r_mant_bits>(0);
     bool r_normal = r_rnd[r_mant_bits] | rnd_ovf;
     exp += rnd_ovf;
-    bool exception = f_inf | f_nan | (exp > r_max_exp);
-    r_e_t r_e = exception ? -1 : (f_zero | !r_normal) ? 0 : exp + r_exp_bias;
+    bool f_conv_inf = !f_inf && (exp > r_max_exp); // treated differently than f_inf for AC_TRN_ZERO
+    bool exception = f_inf | f_nan | (QR != AC_TRN_ZERO && f_conv_inf);
+    r_e_t r_e = exception ? -1 : (f_zero | !r_normal) ? 0 : (QR==AC_TRN_ZERO && f_conv_inf) ? ~1 : exp + r_exp_bias;
     if(exception) {
       r_m = 0;
       r_m[r_mant_bits-1] = f_nan;
+    }
+    if(QR==AC_TRN_ZERO) {
+      r_m |= ac_int<1,true>(-f_conv_inf);
     }
     r.d = r_m;
     r.d.set_slc(r_mant_bits, r_e);
@@ -580,35 +627,72 @@ public:
   template<ac_q_mode Q, int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   void assign_from(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &fx) {
     ac_private::check_supported<Q>();
-    bool sign = fx < 0.0;
-    ac_fixed<WFX+1,2,SFX> x = 0;
-    x.set_slc(0,fx.template slc<WFX+1>(0));
-    bool all_sign;
-    int ls = x.leading_sign(all_sign);
-    int max_shift_left = IFX-1 - min_exp + 1;
-    bool shift_exponent_limited = ls >= max_shift_left;
-    int shift_l = shift_exponent_limited ? max_shift_left : ls;
-    ac_fixed<WFX+1,2,false> x_u = sign ? (ac_fixed<WFX+1,2,false>) -x :  (ac_fixed<WFX+1,2,false>) x;
-    x_u <<= shift_l;
-    int exp = IFX-1;
-    exp -= shift_l;
-    ac_fixed<mu_bits+1,2,false,Q> m_rnd = x_u;
-    mu1_t m_u = 0;  m_u.set_slc(0, m_rnd.template slc<mu_bits+1>(0));
-    bool shiftr1 = m_u[mu_bits];  // msb
-    bool r_normal = m_u[mu_bits] | m_u[mu_bits-1];
-    m_u >>= shiftr1;
-    exp += shiftr1;
-    bool fx_zero = all_sign & !sign;
-    bool r_inf = (exp > max_exp) & !fx_zero;
-    if(Q==AC_TRN_ZERO) {
-      exp = r_inf ? max_exp + exp_bias : exp;
-      m_u |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
+    bool sign = SFX && fx < 0.0;
+    ac_int<WFX,SFX> x = fx.template slc<WFX>(0);
+    const int max_shift_left = IFX-SFX-1-min_exp;
+    typedef ac_int<WFX,false> x_u_t;
+    x_u_t x_u = sign ? (x_u_t) -x : (x_u_t) x;
+    bool r_normal;
+    bool r_inf;
+    int exp = IFX-SFX-1;
+    ac_int<mant_bits,false> m_r;
+    if(max_shift_left >= 0) {
+      bool all_sign = false;
+      unsigned shift_l = ac_private::leading_sign_constrained<max_shift_left>(x,all_sign);
+      x_u <<= shift_l;
+      exp -= shift_l;
+      // after shift of abs value, MSB should be 0 with exception of 1 followed by 0s
+      bool ovf_most_neg = SFX && x_u[WFX-1];
+      bool ovf = ovf_most_neg;
+      if((Q == AC_RND_CONV || Q == AC_RND_INF) && WFX-SFX > mu_bits) {
+        // Check whether rounding would trigger overflow
+        mu1_t t = x_u.template slc<mu_bits+1>((WFX-SFX) - mu_bits - 1);
+        ovf |= t == mu1_t(-1);
+      }
+      ac_fixed<mu_bits,WFX-SFX,false,Q> r_rnd;
+      r_rnd = (ac_int<WFX-SFX,false>)x_u;
+      m_r = r_rnd.template slc<mant_bits>(0);
+      exp += ovf;
+      r_normal = r_rnd[mu_bits-1] | ovf;
+      bool fx_zero = all_sign & !sign;
+      r_inf = (exp > max_exp) & !fx_zero;
+      exp += exp_bias;
+      if(Q==AC_TRN_ZERO) {
+        exp = r_inf ? max_exp + exp_bias : exp;
+        m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
+        r_inf = false;
+      }
+    } else {
+      bool sticky_bit = false;
+      typedef ac_int<mu_bits+2+SFX,false> h_t;
+      h_t x_bef_rnd;
+      if(WFX-SFX > mu_bits+2) {
+        sticky_bit = !!(x_u << mu_bits+2);
+        x_bef_rnd = x_u >> ((WFX-SFX)-(mu_bits+2));
+      } else {
+        x_bef_rnd = x_u;
+        x_bef_rnd <<= (mu_bits+2)-(WFX-SFX);
+      }
+      int shift_l = max_shift_left;
+      unsigned shift_r_m1 = ~shift_l;
+      h_t shifted_out_bits = x_bef_rnd;
+      shifted_out_bits &= ~((~h_t(1)) << shift_r_m1);
+      x_bef_rnd >>= shift_r_m1;
+      x_bef_rnd >>= 1;
+      sticky_bit |= !!shifted_out_bits;
+      x_bef_rnd[0] = x_bef_rnd[0] | sticky_bit;
+
+      ac_fixed<mu_bits,mu_bits+2,false,Q> r_rnd = x_bef_rnd;
+      m_r = r_rnd.template slc<mant_bits>(0);
+      bool ovf_most_neg = SFX && x_bef_rnd[mu_bits+2+SFX-1];
+      r_normal = r_rnd[mu_bits-1] | ovf_most_neg;
       r_inf = false;
+      exp = r_normal;
     }
-    e_t e = r_inf ? -1 : (!r_normal) ? 0 : exp + exp_bias;
-    m_u &= ac_int<1,true>(!r_inf);
+    e_t e = r_inf ? -1 : r_normal ? exp : 0;
+    m_r &= ac_int<1,true>(!r_inf);
     e &= ac_int<1,true>(r_normal);
-    d = m_u.template slc<mant_bits>(0);
+    d = m_r;
     d.set_slc(mant_bits, e);
     d[W-1] = sign;
   }
@@ -619,6 +703,10 @@ public:
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   explicit ac_std_float(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &fx) {
     assign_from<AC_RND_CONV>(fx);
+  }
+  template<int WI, bool SI>
+  explicit ac_std_float(const ac_int<WI,SI> &x) {
+    assign_from<AC_RND_CONV>(x);
   }
   explicit ac_std_float(float f) {
     const int w_bits = sizeof(f)*8;
@@ -1466,7 +1554,6 @@ public:
 
 template<ac_ieee_float_format Format>
 inline std::ostream& operator << (std::ostream &os, const ac_ieee_float_base<Format> &x) {
-  const int w = ac_ieee_float_base<Format>::width;
 #ifndef __SYNTHESIS__
   if ((os.flags() & std::ios::hex) != 0) {
     os << x.data_ac_int().to_string(AC_HEX,false,true);
@@ -1893,6 +1980,8 @@ public:
   explicit ac_ieee_float(const ac_float_t &f) : Base(ac_std_float_t(f)) {}
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   explicit ac_ieee_float(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &fx) : Base(ac_std_float_t(fx)) {}
+  template<int WI, bool SI>
+  explicit ac_ieee_float(const ac_int<WI,SI> &x) : Base(ac_std_float_t(x)) {}
   template<ac_q_mode Q>
   explicit ac_ieee_float(const ac_float<width-e_width+1,2,e_width,Q> &f) : Base(ac_std_float_t(f)) {}
   template<ac_ieee_float_format Format2>
@@ -1908,6 +1997,16 @@ public:
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   ac_fixed<WFX,IFX,SFX,QFX,OFX> convert_to_ac_fixed(bool map_inf=false) const {
     return to_ac_std_float().template convert_to_ac_fixed<WFX,IFX,SFX,QFX,OFX>(map_inf);
+  }
+  template<int WI, bool SI>
+  ac_int<WI,SI> convert_to_ac_int(bool map_inf=false) const {
+    return to_ac_std_float().template convert_to_ac_int<WI,SI>(map_inf);
+  }
+  int convert_to_int(bool map_inf=false) const {
+    return to_ac_std_float().convert_to_int(map_inf);
+  }
+  long long convert_to_int64(bool map_inf=false) const {
+    return to_ac_std_float().convert_to_int64(map_inf);
   }
   void set_data(const data_t &data) {
     Base::set_data(data);
@@ -2111,6 +2210,12 @@ public:
     x.assign_from<AC_TRN_ZERO>(fx);
     *this = x;
   }
+  template<int WI, bool SI>
+  explicit bfloat16(const ac_int<WI,SI> &xi) {
+    ac_std_float_t x;
+    x.assign_from<AC_TRN_ZERO>(xi);
+    *this = x;
+  }
 private:
   const helper_t to_helper_t() const {
     helper_t x;
@@ -2131,6 +2236,16 @@ public:
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   ac_fixed<WFX,IFX,SFX,QFX,OFX> convert_to_ac_fixed(bool map_inf=false) const {
     return to_ac_std_float().template convert_to_ac_fixed<WFX,IFX,SFX,QFX,OFX>(map_inf);
+  }
+  template<int WI, bool SI>
+  ac_int<WI,SI> convert_to_ac_int(bool map_inf=false) const {
+    return to_ac_std_float().template convert_to_ac_int<WI,SI>(map_inf);
+  }
+  int convert_to_int(bool map_inf=false) const {
+    return to_ac_std_float().convert_to_int(map_inf);
+  }
+  long long convert_to_int64(bool map_inf=false) const {
+    return to_ac_std_float().convert_to_int64(map_inf);
   }
   float to_float() const {
     return to_ac_std_float().to_float();
