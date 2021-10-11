@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.2                                                 *
+ *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
+ *  Release Date    : Mon Oct 11 09:21:53 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.2                                               *
+ *  Release Build   : 4.4.0                                               *
  *                                                                        *
  *  Copyright 2004-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 4
-#define AC_VERSION_MINOR 2
+#define AC_VERSION_MINOR 4
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
@@ -1616,6 +1616,10 @@ namespace ac_private {
   C_ARITH(Ulong, int)
   C_ARITH(Ulong, unsigned)
 
+  template<typename T, typename T2>
+  struct rt_closed_T {
+  };
+
   template<typename T>
   struct map {
     typedef T t;
@@ -2065,7 +2069,7 @@ public:
 
   inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false, bool pad_to_width = false) const {
     // base_rep == AC_DEC => sign_mag == don't care (always print decimal in sign magnitude)
-    // base_rep == AC_DEC => pad_to_width == don't care 
+    // base_rep == AC_DEC => pad_to_width == don't care
     char r[N*32+4] = {0};
     int i = 0;
     if(sign_mag)

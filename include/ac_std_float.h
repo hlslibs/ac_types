@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.2                                                 *
+ *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
+ *  Release Date    : Mon Oct 11 09:21:53 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.2                                               *
+ *  Release Build   : 4.4.0                                               *
  *                                                                        *
  *  Copyright 2018-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -134,14 +134,6 @@ namespace ac_private {
 #endif
 #endif
   }
-
-  template<typename T, typename T2>
-  struct rt_closed_T {
-  };
-  template<typename T>
-  struct rt_closed_T<T,T> {
-    typedef T type;
-  };
 
   template<bool PosWidth, bool Constrained>
   struct LeadingSignConstrained {
@@ -371,11 +363,41 @@ namespace ac {
   class bfloat16;
 }
 
+namespace ac_private {
+  template<int W, int E>
+  struct rt_closed_T<ac_std_float<W,E>,ac_std_float<W,E> > {
+    typedef ac_std_float<W,E> type;
+  };
+  template<ac_ieee_float_format Format>
+  struct rt_closed_T<ac_ieee_float<Format>,ac_ieee_float<Format> > {
+    typedef ac_ieee_float<Format> type;
+  };
+  template<>
+  struct rt_closed_T<ac::bfloat16,ac::bfloat16> {
+    typedef ac::bfloat16 type;
+  };
+}
+
 template<int W, int E>
 class ac_std_float {
 __AC_DATA_PRIVATE
   ac_int<W,true> d;
 public:
+  template<typename T>
+  struct rt_T {
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type mult;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type plus;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type minus;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type minus2;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type logic;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type div;
+    typedef typename ac_private::rt_closed_T<ac_std_float,T>::type div2;
+  };
+  struct rt_unary {
+    typedef ac_std_float neg;
+    typedef ac_std_float mag_sqr;
+    typedef ac_std_float mag;
+  };
   static const int width = W;
   static const int e_width = E;
   static const int mant_bits = W - E - 1;
@@ -444,7 +466,7 @@ public:
       e_t f_e = d.template slc<E>(mant_bits);
       bool f_normal = !!f_e;
       mu_t mu = d;
-      mu[r_mant_bits] = f_normal;
+      mu[mant_bits] = f_normal;
       ac_fixed<r_mu_bits+1,mu_bits+1,false,QR> r_rnd = mu;
       bool rnd_ovf = r_rnd[r_mu_bits];
       ac_int<r_mant_bits,false> m_r = r_rnd.template slc<r_mant_bits>(0);
@@ -774,7 +796,7 @@ public:
     ac_int<mant_bits,false> m = d;
     return !m;
   }
-  const ac_float<mant_bits+2,2,E,AC_TRN> to_ac_float() const {
+  const ac_float<mant_bits+2,2,E,AC_RND_CONV> to_ac_float() const {
     ac_int<E,true> e = d.template slc<E>(mant_bits);
     bool normal = !!e;
     bool sign = d[W-1];

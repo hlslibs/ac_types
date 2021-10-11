@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.2                                                 *
+ *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
+ *  Release Date    : Mon Oct 11 09:21:53 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.2                                               *
+ *  Release Build   : 4.4.0                                               *
  *                                                                        *
  *  Copyright 2005-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -103,7 +103,7 @@ namespace ac {
       if(d_enable) {
         if(overflow) {
           std::cerr << (neg ? "-" : "+") << "OVF: ";
-          std::cerr << type_name() << " ( " << basic_num_ovf_base<W2,I2,S2,Q2,O2>::type_name(); 
+          std::cerr << type_name() << " ( " << basic_num_ovf_base<W2,I2,S2,Q2,O2>::type_name();
           std::cerr << " ( " << op2.value().to_double() << " ) )" << std::endl;
         }
       }
@@ -116,7 +116,7 @@ namespace ac {
       if(d_enable) {
         if(overflow) {
           std::cerr << (neg ? "-" : "+") << "OVF: ";
-          std::cerr << type_name() << " ( " << "double"; 
+          std::cerr << type_name() << " ( " << "double";
           std::cerr << " ( " << op2 << " ) )" << std::endl;
         }
       }
@@ -1051,6 +1051,16 @@ public:
     this->set_slc(0,m);
     return r;
   }
+  bool and_reduce() const {
+    return this->template slc<W>(0).and_reduce();
+  }
+  bool or_reduce() const {
+    return this->template slc<W>(0).or_reduce();
+  }
+  bool xor_reduce() const {
+    return this->template slc<W>(0).xor_reduce();
+  }
+
   inline void bit_fill_hex(const char *str) {
     // Zero Pads if str is too short, throws ms bits away if str is too long
     // Asserts if anything other than 0-9a-fA-F is encountered

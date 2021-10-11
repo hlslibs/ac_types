@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.2                                                 *
+ *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Tue Apr 13 18:16:23 PDT 2021                        *
+ *  Release Date    : Mon Oct 11 09:21:53 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.2.2                                               *
+ *  Release Build   : 4.4.0                                               *
  *                                                                        *
- *  Copyright 2013-2019, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -262,6 +262,11 @@ public:
     m = op.m;
     e = op.e;
   }
+  template<ac_q_mode Q2>
+  ac_float(const ac_float<W,I,E,Q2> &op) {
+    m = op.m;
+    e = op.e;
+  }
 
 private:
   template<int W2>
@@ -288,7 +293,8 @@ private:
   }
 
   template<int min_exp2, int max_exp2, int W2, int I2, ac_q_mode Q2, ac_o_mode O2>
-  void assign_from(const ac_fixed<W2,I2,true,Q2,O2> &m2, int e2, bool sticky_bit, bool normalize, bool assert_on_rounding=false) {
+  void assign_from(const ac_fixed<W2,I2,true,Q2,O2> &m2, int e2, bool sticky_bit, bool force_normalize, bool assert_on_overflow=false, bool assert_on_rounding=false) {
+    // force_normalize: don't assume (m2,e2) is already normalized
     const bool rnd = Q!=AC_TRN & Q!=AC_TRN_ZERO & W2 > W;
     const bool need_rnd_bit = Q != AC_TRN;
     const bool need_rem_bits = need_rnd_bit && Q != AC_RND;
@@ -297,7 +303,7 @@ private:
     const int msb_min_power2 = I2-1 + min_exp2;
     const int msb_min_power_dif = msb_min_power - msb_min_power2;
     //   if > 0: target has additional negative exponent range
-    //     subnormal maybe be further normalized (done even if normalize==false)
+    //     subnormal maybe be further normalized (normalize even if force_normalize==false)
     //   if < 0: target has less negative exponent range
     //     mantissa may need to be shifted right
     //   in either case if source is unnormalized
@@ -317,7 +323,7 @@ private:
     op2_t op2 = m2;
     int ls = 0;
     bool r_zero;
-    if(normalize) {
+    if(force_normalize) {
       bool all_sign;
       ls = m2.leading_sign(all_sign);
       r_zero = all_sign & !m2[0];
@@ -361,11 +367,17 @@ private:
     if(need_rem_bits)
       r_pre_rnd[0] = sticky_bit;
 
-    bool shift_r1 = round(r_pre_rnd);
+    bool shift_r1 = round(r_pre_rnd, assert_on_rounding);
     e_t = r_zero ? 0 : e_t + shift_r1;
     if(!(e_t < 0) & !!(e_t >> E-1)) {
       e = MAX_EXP;
       m = m < 0 ? value<AC_VAL_MIN>(m) : value<AC_VAL_MAX>(m);
+      if(assert_on_overflow) {
+        if(m < 0)
+          AC_ASSERT(false, "Overflow: Saturation to AC_VAL_MIN");
+        else
+          AC_ASSERT(false, "Overflow: Saturation to AC_VAL_MAX");
+      }
     } else {
       e = e_t;
     }
@@ -373,11 +385,29 @@ private:
 
 public:
   template<AC_FL_T(2)>
-  ac_float(const AC_FL(2) &op, bool assert_on_overflow=false, bool assert_on_rounding=false) {
+  ac_float(const AC_FL(2) &op, bool force_normalize=false, bool assert_on_overflow=false, bool assert_on_rounding=false) {
+    // force_normalize: don't assume op is already normalized
     typedef AC_FL(2) fl2_t;
-    const int min_exp2 = fl2_t::MIN_EXP;
-    const int max_exp2 = fl2_t::MAX_EXP;
-    assign_from<min_exp2,max_exp2>(op.m, op.e, false, false);
+    if(E==E2 && I>=I2 && W-I >= W2-I2) {
+      m = op.m;
+      e = op.e;
+      if(force_normalize)
+        this->normalize();
+      else if(I > I2) {
+        const int ls = I-I2;
+        int e_t = e;
+        int actual_max_shift_left = (1 << (E-1)) + e_t;
+        bool shift_exponent_limited = ls >= actual_max_shift_left;
+        int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
+        m <<= shift_l;
+        e = shift_exponent_limited ? MIN_EXP : e_t - ls;
+        e &= ac_int<1,true>(!!op.m);
+      }
+    } else {
+      const int min_exp2 = fl2_t::MIN_EXP;
+      const int max_exp2 = fl2_t::MAX_EXP;
+      assign_from<min_exp2,max_exp2>(op.m, op.e, false, force_normalize, assert_on_overflow, assert_on_rounding);
+    }
   }
 
   ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, bool normalize=true) {
