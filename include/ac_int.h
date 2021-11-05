@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Mon Oct 11 09:21:53 PDT 2021                        *
+ *  Release Date    : Fri Nov  5 09:32:22 PDT 2021                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.0                                               *
+ *  Release Build   : 4.4.1                                               *
  *                                                                        *
  *  Copyright 2004-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -1016,19 +1016,18 @@ namespace ac_private {
 
   template<int N, int Nr>
   inline void iv_shift_l(const int *op1, unsigned op2, int *r) {
-    AC_ASSERT(Nr <= N, "iv_shift_l, incorrect usage Nr > N");
     unsigned s31 = op2 & 31;
     unsigned ishift = (op2 >> 5) > Nr ? Nr : (op2 >> 5);
     if(s31 && ishift!=Nr) {
       unsigned lw = 0;
       for(unsigned i=0; i < Nr; i++) {
-        unsigned hw = (i >= ishift) ? op1[i-ishift] : 0;
+        unsigned hw = (i >= ishift && i < N) ? op1[i-ishift] : 0;
         r[i] = (hw << s31) | (lw >> (32-s31));
         lw = hw;
       }
     } else {
       for(unsigned i=0; i < Nr ; i++)
-        r[i] = (i >= ishift) ? op1[i-ishift] : 0;
+        r[i] = (i >= ishift && i < N) ? op1[i-ishift] : 0;
     }
   }
 
