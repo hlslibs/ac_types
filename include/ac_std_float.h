@@ -4,11 +4,11 @@
  *                                                                        *
  *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  5 09:32:22 PDT 2021                        *
+ *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.1                                               *
+ *  Release Build   : 4.4.2                                               *
  *                                                                        *
- *  Copyright 2018-2021, Mentor Graphics Corporation,                     *
+ *  Copyright 2018-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -835,6 +835,14 @@ public:
     double f;
     ac::copy_bits(t.d, &f);
     return f;
+  }
+  inline static std::string type_name() {
+    std::string r = "ac_std_float<";
+    r += ac_int<32,true>(W).to_string(AC_DEC);
+    r += ",";
+    r += ac_int<32,true>(E).to_string(AC_DEC);
+    r += ">"; 
+    return r;
   }
 private:
   void extract(mu_t &m, e_t &e, bool &sign, bool &normal, bool &zero, bool &inf, bool &nan, bool biased_exp=false, bool no_subnormals=false) const {
@@ -2045,6 +2053,13 @@ public:
   explicit ac_ieee_float(long long x) {
     *this = ac_ieee_float(ac_fixed<64,64,true>(x));
   }
+  inline static std::string type_name() {
+    std::string r = "ac_ieee_float<binary";
+    const char *format[] = {"16", "32", "64", "128", "256"};
+    r += format[(int)Format]; 
+    r += ">";
+    return r;
+  }
   int fpclassify() const { return Base::to_helper_t().fpclassify(); }
   bool isfinite() const { return Base::to_helper_t().isfinite(); }
   bool isnormal() const { return Base::to_helper_t().isnormal(); }
@@ -2279,6 +2294,10 @@ public:
 #if __cplusplus > 199711L
   explicit operator float() const { return to_float(); }
 #endif
+  inline static std::string type_name() {
+    std::string r = "ac::bfloat16";
+    return r;
+  }
   int fpclassify() const { return to_helper_t().fpclassify(); }
   bool isfinite() const { return to_helper_t().isfinite(); }
   bool isnormal() const { return to_helper_t().isnormal(); }

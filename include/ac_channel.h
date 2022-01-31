@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  5 09:32:22 PDT 2021                        *
+ *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.1                                               *
+ *  Release Build   : 4.4.2                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -143,8 +143,8 @@ public:
   int get_size_call_count() { return chan.get_size_call_count(); }
 
 #ifdef SYSTEMC_INCLUDED
-  void bind(sc_fifo_in<T> &f) { chan.bind(f); }
-  void bind(sc_fifo_out<T> &f) { chan.bind(f); }
+  void bind(sc_core::sc_fifo_in<T> &f) { chan.bind(f); }
+  void bind(sc_core::sc_fifo_out<T> &f) { chan.bind(f); }
 #endif
 
 #ifdef __CONNECTIONS__CONNECTIONS_H__
@@ -251,8 +251,8 @@ public:
 
 #ifdef SYSTEMC_INCLUDED
     struct fifo_sc_fifo : fifo_abstract {
-      sc_fifo_in<T> *fifo_in;
-      sc_fifo_out<T> *fifo_out;
+      sc_core::sc_fifo_in<T> *fifo_in;
+      sc_core::sc_fifo_out<T> *fifo_out;
 
       ~fifo_sc_fifo() {}
 
@@ -281,8 +281,8 @@ public:
       }
     };
 public:
-    void bind(sc_fifo_in<T> &f) { get_fifo<fifo_sc_fifo>().fifo_in = &f; }
-    void bind(sc_fifo_out<T> &f) { get_fifo<fifo_sc_fifo>().fifo_out = &f; }
+    void bind(sc_core::sc_fifo_in<T> &f) { get_fifo<fifo_sc_fifo>().fifo_in = &f; }
+    void bind(sc_core::sc_fifo_out<T> &f) { get_fifo<fifo_sc_fifo>().fifo_out = &f; }
 private:
 #endif
 

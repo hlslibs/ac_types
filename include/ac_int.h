@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.4                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  5 09:32:22 PDT 2021                        *
+ *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.1                                               *
+ *  Release Build   : 4.4.2                                               *
  *                                                                        *
  *  Copyright 2004-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
