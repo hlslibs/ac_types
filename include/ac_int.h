@@ -159,7 +159,9 @@ namespace ac_private {
 #ifndef __SYNTHESIS__
   inline double mgc_floor(double d) { return floor(d); }
 #else
-  inline double mgc_floor(double d) { return 0.0; }
+  inline double mgc_floor(double d) { 
+    #error "mgc_floor on floating point types is not allowed for synthesis" 
+  }
 #endif
 
   #define AC_ASSERT(cond, msg) ac_private::ac_assert(cond, __FILE__, __LINE__, msg)
