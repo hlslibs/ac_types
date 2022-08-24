@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.4                                                 *
+ *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
+ *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.2                                               *
+ *  Release Build   : 4.6.1                                               *
  *                                                                        *
  *  Copyright 2005-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -567,6 +567,7 @@ public:
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wenum-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
 #endif
   template<int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
   typename rt<W2,I2,S2>::div operator /( const ac_fixed<W2,I2,S2,Q2,O2> &op2) const {
@@ -974,7 +975,9 @@ public:
       // lsb of int (val&1) is written to bit
       if(d_index < W) {
         int *pval = &d_bv.v[d_index>>5];
-        *pval ^= (*pval ^ ((unsigned) val << (d_index&31) )) & 1 << (d_index&31);
+        int shift = d_index & 31;
+        unsigned int mask = 1u << shift;
+        *pval = (*pval & ~mask) | ((val & 1) << shift);
         d_bv.bit_adjust();   // in case sign bit was assigned
       }
       return *this;

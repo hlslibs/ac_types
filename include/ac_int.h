@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.4                                                 *
+ *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
+ *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.2                                               *
+ *  Release Build   : 4.6.1                                               *
  *                                                                        *
- *  Copyright 2004-2021, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
  *  All Rights Reserved.                                                  *
  *                                                                        *
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 4
-#define AC_VERSION_MINOR 4
+#define AC_VERSION_MINOR 6
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
@@ -153,14 +153,11 @@ namespace ac_private {
 
   enum {long_w = std::numeric_limits<unsigned long>::digits};
   const unsigned int all_ones = (unsigned) ~0;
+  const Ulong  all_ones64 = (Ulong) ~(Ulong)0;
 
   // PRIVATE FUNCTIONS in namespace: for implementing ac_int/ac_fixed
 
-#ifndef __SYNTHESIS__
   inline double mgc_floor(double d) { return floor(d); }
-#else
-  inline double mgc_floor(double d) { return 0.0; }
-#endif
 
   #define AC_ASSERT(cond, msg) ac_private::ac_assert(cond, __FILE__, __LINE__, msg)
   inline void ac_assert(bool condition, const char *file=0, int line=0, const char *msg=0) {
@@ -1030,6 +1027,21 @@ namespace ac_private {
         r[i] = (i >= ishift && i < N) ? op1[i-ishift] : 0;
     }
   }
+  template<> inline void iv_shift_l<1,1>(const int *op1, unsigned op2, int *r) {
+    r[0] = op2 < 32 ? op1[0] << op2 : 0;
+  }
+  template<> inline void iv_shift_l<2,1>(const int *op1, unsigned op2, int *r) {
+    Ulong vop1 =
+        (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
+    vop1 = op2 < 64 ? vop1 << op2 : (Ulong) 0;
+    r[0] = vop1;
+  }
+  template<> inline void iv_shift_l<2,2>(const int *op1, unsigned op2, int *r) {
+    Ulong vop1 =
+        (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
+    vop1 = op2 < 64 ? vop1 << op2 : (Ulong) 0;
+    iv_assign_uint64<2>(r, vop1);
+  }
 
   template<int N, int Nr>
   inline void iv_shift_r(const int *op1, unsigned op2, int *r) {
@@ -1047,6 +1059,21 @@ namespace ac_private {
       for(unsigned i=0; i < Nr ; i++)
         r[i] = (i+ishift < N) ? op1[i+ishift] : ext;
     }
+  }
+  template<> inline void iv_shift_r<1,1>(const int *op1, unsigned op2, int *r) {
+    r[0] = (op2 < 32) ? (op1[0] >> op2) : (op1[0] >> 31);
+  }
+  template<> inline void iv_shift_r<2,1>(const int *op1, unsigned op2, int *r) {
+    Slong vop1 =
+        (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
+    vop1 = (op2 < 64) ? (vop1 >> op2) : (vop1 >> 63);
+    r[0] = vop1;
+  }
+  template<> inline void iv_shift_r<2,2>(const int *op1, unsigned op2, int *r) {
+    Slong vop1 =
+        (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
+    vop1 = (op2 < 64) ? (vop1 >> op2) : (vop1 >> 63);
+    iv_assign_int64<2>(r, vop1);
   }
 
   template<int N, int Nr, bool S>
@@ -1314,6 +1341,77 @@ namespace ac_private {
     return 32*(N-1-k) + (k < 0 ? 0 : iv_leading_bits<1>(op+k, bit));
   }
 
+  template<int W>
+  inline unsigned reverse_u(unsigned x) {
+    unsigned r = x;
+    if(W > 1) {
+      int mask = 0x55555555;
+      int shift = 1;
+      r = (mask & r) << shift | unsigned(~mask & r) >> shift;
+      if(W > 2) {
+        mask = 0x33333333;
+        shift = 2;
+        r = (mask & r) << shift | unsigned(~mask & r) >> shift;
+        if(W > 4) {
+          mask = 0x0f0f0f0f;
+          shift = 4;
+          r = (mask & r) << shift | unsigned(~mask & r) >> shift;
+          if(W > 8) {
+            mask = 0x00ff00ff;
+            shift = 8;
+            r = (mask & r) << shift | unsigned(~mask & r) >> shift;
+            if(W > 16) {
+              mask = 0x0000ffff;
+              shift = 16;
+              r = (mask & r) << shift | unsigned(~mask & r) >> shift;
+            }
+          }
+        }
+      }
+      r >>= shift*2-W;
+    }
+    return r;
+  }
+
+  template<int N>
+  inline void iv_reverse(const int *op, int *r) {
+    for(int k=0; k < N; k++)
+      r[k] = reverse_u<32>((unsigned) op[N-1-k]);
+  }
+  template<> inline void iv_reverse<1>(const int *op, int *r) {
+    r[0] = reverse_u<32>((unsigned) op[0]);
+  }
+  template<> inline void iv_reverse<2>(const int *op, int *r) {
+    r[0] = reverse_u<32>((unsigned) op[1]);
+    r[1] = reverse_u<32>((unsigned) op[0]);
+  }
+
+  inline int set_bits_int(int op, int lsb, int WS, int slc) {
+    // WS < 32, lsb+WS-1 < 32
+    // set the bits [pos+WS-1,pos] of op with the lower WS bits of slc
+    unsigned mask = ~(all_ones << WS);
+    unsigned r = op;
+    unsigned wslc = slc & mask;
+    wslc <<= lsb;
+    mask <<= lsb;
+    r &= ~mask;
+    r |= wslc;
+    return r;
+  }
+
+  inline Slong set_bits_int64(Slong op, int lsb, int WS, Slong slc) {
+    // WS < 64, lsb+WS-1 < 64
+    // set the bits [pos+WS-1,pos] of op with the lower WS bits of slc
+    Ulong mask = ~(all_ones64 << WS);
+    Ulong r = op;
+    Ulong wslc = slc & mask;
+    wslc <<= lsb;
+    mask <<= lsb;
+    r &= ~mask;
+    r |= wslc;
+    return r;
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   //  Integer Vector class: iv
   //////////////////////////////////////////////////////////////////////////////
@@ -1464,6 +1562,7 @@ namespace ac_private {
     bool equal_zero() const {
       return iv_equal_zero<N>(v);
     }
+
     template<int N2>
     void set_slc(unsigned lsb, int WS, const iv<N2> &op2) {
       AC_ASSERT((31+WS)/32 == N2, "Bad usage: WS greater than length of slice");
@@ -1472,28 +1571,29 @@ namespace ac_private {
       unsigned lsb_b = lsb & 31;
       unsigned msb_v = msb >> 5;
       unsigned msb_b = msb & 31;
-      if(N2==1) {
-        if(msb_v == lsb_v)
-          v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb_b);
-        else {
-          v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (all_ones << lsb_b);
-          unsigned m = (((unsigned) op2.v[0] >> 1) >> (31-lsb_b));
-          v[msb_v] ^= (v[msb_v] ^ m) & ~((all_ones<<1)<<msb_b);
-        }
-      } else {
-        v[lsb_v] ^= (v[lsb_v] ^ ((unsigned) op2.v[0] << lsb_b)) & (all_ones << lsb_b);
-        for(int i = 1; i < N2-1; i++)
-          v[lsb_v+i] = ((unsigned) op2.v[i] << lsb_b) | (((unsigned) op2.v[i-1] >> 1) >> (31-lsb_b));
-        unsigned t = ((unsigned) op2.v[N2-1] << lsb_b) | (((unsigned) op2.v[N2-2] >> 1) >> (31-lsb_b));
-        unsigned m;
-        if(msb_v-lsb_v == N2) {
-          v[msb_v-1] = t;
-          m = (((unsigned) op2.v[N2-1] >> 1) >> (31-lsb_b));
-        }
-        else
-          m = t;
-        v[msb_v] ^= (v[msb_v] ^ m) & ~((all_ones<<1)<<msb_b);
-      }
+      // Specializations are done for <N,N2>={<1,1>,<2,1>,<2,2>}
+
+      // Save head an tail bits to be kept on affected elements of v
+      unsigned mask_msb_kept = (all_ones << 1) << msb_b;  // bits left of msb_b
+      unsigned msb_v_kept = (unsigned) v[msb_v] & mask_msb_kept;
+      unsigned mask_lsb_kept = ~(all_ones << lsb_b);  // bits right of lsb_b
+      unsigned lsb_v_kept = (unsigned) v[lsb_v] & mask_lsb_kept;
+
+      // Copy over shifted version of op2 (by lsb_b) to this->v starting at v[lsb_v]
+      iv_shift_l<N2,N2>(op2.v, lsb_b, v+lsb_v);
+      if(msb_v-lsb_v == N2)  // slice crosses over iv boundary because of lsb_b
+        v[msb_v] = ((unsigned) op2.v[N2-1] >> 1) >> (31-lsb_b);   // equiv to << (lsb_b-32)
+
+      // Clear sign extension bits originating from op2
+      v[msb_v] &= ~mask_msb_kept;
+
+      // OR back kept lsb and msb bits
+      v[msb_v] |= msb_v_kept;
+      v[lsb_v] |= lsb_v_kept;
+    }
+
+    void reverse(iv<N> &r) const {
+      iv_reverse<N>(v, r.v);
     }
     unsigned leading_bits(bool bit) const {
       return iv_leading_bits<N>(v, bit);
@@ -1511,18 +1611,18 @@ namespace ac_private {
   }
 
   template<> template<> inline void iv<1>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
-    v[0] ^= (v[0] ^ ((unsigned) op2.v[0] << lsb)) & (~(WS==32 ? 0 : all_ones<<WS) << lsb);
+    v[0] = WS==32 ? op2.v[0] : set_bits_int(v[0], lsb, WS, op2.v[0]);
   }
   template<> template<> inline void iv<2>::set_slc(unsigned lsb, int WS, const iv<1> &op2) {
     Ulong l = to_uint64();
     Ulong l2 = op2.to_uint64();
-    l ^= (l ^ (l2 << lsb)) & (~((~(Ulong)0)<<WS) << lsb);  // WS <= 32
+    l = set_bits_int64(l, lsb, WS, l2);  // WS <= 32, never full 64-bit assignment
     *this = l;
   }
   template<> template<> inline void iv<2>::set_slc(unsigned lsb, int WS, const iv<2> &op2) {
     Ulong l = to_uint64();
     Ulong l2 = op2.to_uint64();
-    l ^= (l ^ (l2 << lsb)) & (~(WS==64 ? (Ulong) 0 : ~(Ulong)0<<WS) << lsb);
+    l = WS==64 ? l2 : set_bits_int64(l, lsb, WS, l2);
     *this = l;
   }
 
@@ -2126,6 +2226,7 @@ public:
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wenum-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
 #endif
   template<int W2, bool S2>
   typename rt<W2,S2>::div operator /( const ac_int<W2,S2> &op2) const {
@@ -2174,6 +2275,7 @@ public:
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wenum-compare"
+#pragma GCC diagnostic ignored "-Wsign-compare"
 #endif
   template<int W2, bool S2>
   ac_int &operator /=( const ac_int<W2,S2> &op2) {
@@ -2472,7 +2574,9 @@ public:
       // lsb of int (val&1) is written to bit
       if(d_index < W) {
         int *pval = &d_bv.v[d_index>>5];
-        *pval ^= (*pval ^ ( (unsigned) val << (d_index&31) )) & 1 << (d_index&31);
+        int shift = d_index & 31;
+        unsigned int mask = 1u << shift;
+        *pval = (*pval & ~mask) | ((val & 1) << shift);
         d_bv.bit_adjust();   // in case sign bit was assigned
       }
       return *this;
@@ -2522,6 +2626,19 @@ public:
     unsigned uindex = ac_int<W2-S2,false>(index).to_uint();
     AC_ASSERT(uindex < W, "Attempting to read bit beyond MSB");
     return (uindex < W) ? (Base::v[uindex>>5]>>(uindex&31) & 1) : 0;
+  }
+
+  ac_int<W,false> reverse() const {
+    if(W > 32) {
+      typedef ac_int<W,true> intW_t;
+      typename intW_t::Base r0(*this);
+      intW_t r;
+      r0.reverse(r);
+      r.template const_shift_r<intW_t::N,(32-W)&31>(r);
+      return ac_int<W,false>(r);
+    } else {
+      return ac_int<W,false>(ac_private::reverse_u<W>((unsigned)Base::v[0]));
+    }
   }
 
   typename rt_unary::leading_sign leading_sign() const {

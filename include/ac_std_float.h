@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.4                                                 *
+ *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Mon Jan 31 10:49:34 PST 2022                        *
+ *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.4.2                                               *
+ *  Release Build   : 4.6.1                                               *
  *                                                                        *
  *  Copyright 2018-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -160,6 +160,10 @@ namespace ac_private {
       return ls;
     }
   };
+#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wbool-compare"
+#endif
   template<int MaxLShift, int W, bool S>
   unsigned leading_sign_constrained(const ac_int<W,S> &x, bool &all_sign) {
     const bool pos_width = MaxLShift > S;
@@ -167,10 +171,15 @@ namespace ac_private {
     return LeadingSignConstrained<pos_width,constrained>::template val<MaxLShift>(x, all_sign);
   }
 }
+#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#pragma GCC diagnostic pop
+#endif
 
 namespace ac {
+#ifdef __SYNTHESIS__
   #pragma hls_design ccore
   #pragma hls_ccore_type sequential
+#endif
   template<int W>
   void fx_div(ac_int<W,false> op1, ac_int<W,false> op2, ac_int<W+2,false> &quotient, bool &exact) {
     ac_int<W+2,true> R = op1;
@@ -200,8 +209,10 @@ namespace ac {
     exact = !(op1_mi % op2);
   }
 
+#ifdef __SYNTHESIS__
   #pragma hls_design ccore
   #pragma hls_ccore_type sequential
+#endif
   template<int W, int WR>
   bool fx_sqrt( ac_int<W,false> x, ac_int<WR,false> &sqrt) {
     // x is ac_fixed<W,2,false>, sqrt is ac_fixed<WR,1,false>
@@ -841,7 +852,7 @@ public:
     r += ac_int<32,true>(W).to_string(AC_DEC);
     r += ",";
     r += ac_int<32,true>(E).to_string(AC_DEC);
-    r += ">"; 
+    r += ">";
     return r;
   }
 private:
@@ -876,65 +887,119 @@ public:
   template<ac_q_mode QR, bool No_SubNormals>
   ac_std_float add_generic(const ac_std_float &op2) const {
     ac_private::check_supported<QR>();
-    // +1 for possible negation, +1 for bit growth due to addition
-    const int tr_t_iwidth = mu_bits + 1 + 1;
-    // extra bit for rounding, extra bit for left shift
-    const int tr_t_width = tr_t_iwidth + 1 + 1;
-    typedef ac_fixed<tr_t_width,tr_t_iwidth,true> add_t;
-    typedef ac_fixed<mu_bits,mu_bits+1,false> r_un_t;
+
+    // extract exponents/mantissas/flags
     e_t op1_e, op2_e;
     bool op1_normal, op1_sign, op1_zero, op2_normal, op2_sign, op2_zero;
     bool op1_inf, op1_nan, op2_inf, op2_nan;
     mu_t op1_mu, op2_mu;
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
-    m_t op1_m = op1_sign ? m_t(-op1_mu) : m_t(op1_mu);
-    op1_m &= m_t((No_SubNormals & op1_zero) ? 0 : -1);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
-    m_t op2_m = op2_sign ? m_t(-op2_mu) : m_t(op2_mu);
-    op2_m &= m_t((No_SubNormals & op2_zero) ? 0 : -1);
 
-    unsigned op1_e_b = ac_int<E,false>(op1_e) + !op1_normal;
-    unsigned op2_e_b = ac_int<E,false>(op2_e) + !op2_normal;
-    int e_dif = op1_e_b - op2_e_b;
-    bool e1_lt_e2 = e_dif < 0;
-    e_dif = (op1_zero | op2_zero) ? 0 : e1_lt_e2 ? -e_dif : e_dif;
+    // compute abs(op1_e - op2_e)
+    ac_int<E,false> op1_e_b = ac_int<E,false>(op1_e);
+    ac_int<E,false> op2_e_b = ac_int<E,false>(op2_e);
+    int e_dif1 = op1_e_b - op2_e_b;
+    bool e1_lt_e2 = (e_dif1 < 0);
+    bool e1_eq_e2 = (op1_e_b == op2_e_b);
+    //unsigned e_dif = e1_lt_e2 ? e_dif2 : e_dif1;
+    unsigned e_dif = op1_e_b < op2_e_b ? op2_e_b - op1_e_b : op1_e_b - op2_e_b;
 
-    add_t op_lshift = e1_lt_e2 ? op1_m : op2_m;
-    m_t op_no_shift = e1_lt_e2 ? op2_m : op1_m;
-    add_t shifted_out_bits = op_lshift;
-    shifted_out_bits &= ~((~add_t(0)) << (unsigned) e_dif);
-    bool sticky_bit = !!shifted_out_bits;
+    bool do_sub = op1_sign != op2_sign;
 
-    op_lshift >>= (unsigned) e_dif;
-    add_t add_r = op_lshift + op_no_shift;
-    int exp = ( ((e1_lt_e2 & !op2_zero) | op1_zero) ? op2_e_b : op1_e_b);
+    // find bigger & smaller operands
+    // get rid of implicit bit to have comparison computed faster : case where this bit differ have e1_eq_e2=false so result is not taken into account
+    ac_int<mant_bits,false> mant_bits1 = op1_mu;
+    ac_int<mant_bits,false> mant_bits2 = op2_mu;
+    bool ma1_lt_ma2 = (mant_bits1 < mant_bits2);
+    bool op1_smaller = e1_lt_e2 || (e1_eq_e2 && ma1_lt_ma2);
+    // align mantissa instead of correcting exp (a mux is faster than an adder)
+    if (!op1_normal)
+      op1_mu <<= 1;
+    else if (No_SubNormals && op1_zero)
+      op1_mu = 0;
+    if (!op2_normal)
+      op2_mu <<= 1;
+    else if (No_SubNormals && op2_zero)
+      op2_mu = 0;
+    mu_t op_bigger = op1_smaller ? op2_mu : op1_mu;
+    mu_t op_smaller = op1_smaller ? op1_mu : op2_mu;
+    int exp = op1_smaller ? op2_e_b : op1_e_b;
+
+    typedef ac_int<ac::nbits<mu_bits+1>::val,false> e_dif_sat_t;
+    // saturate e_dif (if bigger than mu_bits, result will be the same as mu_bits+1 because shift will be bigger than number of bits)
+    //unsigned e_dif_sat = (e_dif > mu_bits) ? mu_bits+1 : e_dif;
+    e_dif_sat_t e_dif_sat = ac_fixed<ac::nbits<mu_bits+1>::val,ac::nbits<mu_bits+1>::val,false,AC_TRN,AC_SAT>(e_dif).to_ac_int();
+
+    bool r_sign = op1_smaller ? op2_sign : op1_sign;
+    if (e1_eq_e2 && op1_mu == op2_mu)
+      r_sign = op1_sign && op2_sign;
+    bool r_normal = true;
+    bool r_inf = false;
+
+    // compute add/sub of mantissa
+    // we know result will be positive
+
+    ac_int<mant_bits,false> m_r;
+    // int value is mu_bits+1 to keep carry-out of adder
+    // decimal value is 3 bits : guard / round / sticky
+    typedef ac_fixed<mu_bits+1+3,mu_bits+1,false> add_GRS_t;
+    add_GRS_t res_mant;
+    // perform res_mant = op_smaller / 2^e_dif
+    res_mant = op_smaller;
+    ac_int<mu_bits+1+3,false> sticky_bit_mask = -1;
+    sticky_bit_mask <<= e_dif_sat;
+    sticky_bit_mask = ~sticky_bit_mask;
+    sticky_bit_mask >>= 2;
+    bool sticky_bit = !!(op_smaller & sticky_bit_mask); // remove 2bits because we ignore guard and round bits
+    res_mant >>= e_dif_sat;
+    res_mant[0] = sticky_bit;
+
+    // perform : res_mant = do_sub ? op_bigger - res_mant : op_bigger + res_mant
+    if (do_sub)
+      res_mant = ~res_mant;
+    res_mant += add_GRS_t(op_bigger) + (add_GRS_t(do_sub)>>3);
+
+    // compute left shift and res exponent
     bool all_sign;
-    int ls = add_r.leading_sign(all_sign);
-    bool r_zero = !add_r[0] & all_sign;
-    // +1 to account for bit growth of add_r
-    int max_shift_left = exp + (- min_exp - exp_bias + 1);
-    bool shift_exponent_limited = ls >= max_shift_left;
-    int shift_l = shift_exponent_limited ? max_shift_left : ls;
-    add_r <<= shift_l;
-    add_r[0] = add_r[0] | sticky_bit;
-    ac_fixed<mu_bits+1,mu_bits+2,true,QR> r_rnd = add_r;
-    typedef ac_int<mu_bits+1,false> t_h;
-    t_h t = add_r.to_ac_int();
-    bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && t == t_h(-1);
-    bool r_sign = r_rnd[mu_bits] ^ rnd_ovf;
-    bool shift_r = rnd_ovf | (r_sign & !r_rnd.template slc<mu_bits>(0));
-    r_un_t r_un =  r_sign ? (r_un_t) -r_rnd : (r_un_t) r_rnd;
-    // get rid of implied bit, assign to ac_int
-    bool r_normal = r_un[mant_bits] | shift_r;
-    r_zero |= No_SubNormals & !r_normal;
-    ac_int<mant_bits,false> m_r = r_un.template slc<mant_bits>(0);
-    exp = (shift_exponent_limited ? min_exp + exp_bias : exp - ls + 1) + shift_r;
-    bool r_inf = exp > max_exp + exp_bias;
-    if(QR==AC_TRN_ZERO) {
-      exp = r_inf ? max_exp + exp_bias : exp;
-      m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
-      r_inf = false;
+    ac_int<ac::nbits<mu_bits+1+3>::val,false> ls = res_mant.leading_sign(all_sign);
+    bool r_zero = all_sign; // we know res_mant >= 0, so all_sign means equal zero
+    int resexp = exp - ls + 1;
+    // pre-compute exp + 1
+    int exp_plus_1 = exp - ls + 2;
+    if (resexp <= 0) {
+      ls = exp;
+      exp = 0;
+      exp_plus_1 = 1;
+      r_normal = false;
+    } else {
+      exp = resexp;
+      r_inf = exp == max_exp + exp_bias + 1 || exp > max_exp + exp_bias + 1;// same as exp > max_exp + exp_bias
+      r_normal = true;
     }
+    res_mant <<= ls;
+
+    // do rounding
+    typedef ac_fixed<mu_bits+1,mu_bits+2,false,QR> add_rounded_t;
+    add_rounded_t res_rounded = res_mant;
+    if (res_rounded[mu_bits]) { // overflow in rounding
+      res_rounded >>= 1;
+      exp = exp_plus_1;
+      r_inf |= exp == max_exp + exp_bias + 1; // other cases already managed
+      r_normal |= resexp == 0;
+    }
+    r_zero |= No_SubNormals & !r_normal;
+
+    m_r = res_rounded.template slc<mant_bits>(0);
+
+    // special case when AC_TRN_ZERO : infinity is replaced by max value
+    if (r_inf && QR==AC_TRN_ZERO) {
+      exp = max_exp + exp_bias; // saturate res
+      r_inf = false;
+      m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
+    }
+
+    // compute flags and assign result
     bool r_nan = op1_nan | op2_nan | ((op1_inf & op2_inf) & (op1_sign ^ op2_sign));
     bool exception = op1_inf | op2_inf | op1_nan | op2_nan | r_inf;
     ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
@@ -968,77 +1033,130 @@ public:
     bool op1_normal, op1_sign, op1_zero, op2_normal, op2_sign, op2_zero;
     bool op1_inf, op1_nan, op2_inf, op2_nan;
     mu_t op1_mu, op2_mu;
+
+    // extract exponents/mantissas/flags
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
     bool r_sign = op1_sign ^ op2_sign;
     bool r_nan = op1_nan | op2_nan | (op1_inf & op2_zero) | (op1_zero & op2_inf);
+    bool r_inf = op1_inf | op2_inf; // r_nan takes precedence later on
     bool r_zero = op1_zero | op2_zero;  // r_nan takes precedence later on
+
+    // compute raw results exp and p
     int exp = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
-    ac_int<2*mu_bits,false> p = op1_mu * op2_mu;
-    int max_shift_left = exp + (- min_exp - exp_bias + 1);
-    int shift_l = 0;
-    bool shift_l_1 = false;
-    typedef ac_int<mu_bits+1,false> t_h;
-    typedef ac_int<mu_bits-1,false> t_l;
-    t_h p_h;
-    t_l p_l = p;
-    bool r_normal;
-    bool r_inf;
-    ac_fixed<mu_bits,mu_bits+2,false,QR> r_rnd;
-    ac_int<mant_bits,false> m_r;
-    if(max_shift_left >= 0) {
-      r_inf = exp > max_exp + exp_bias;
-      bool exp_is_max = exp == max_exp + exp_bias;
-      bool exp_is_max_m1 = exp == max_exp + exp_bias - 1;
-      unsigned ls = No_SubNormals ? 0 : (unsigned) (op1_normal ? op2_mu : op1_mu).leading_sign();
-      bool shift_exponent_limited = ls >= (unsigned) max_shift_left;
-      shift_l = shift_exponent_limited ? (unsigned) max_shift_left : ls;
-      p <<= (unsigned) shift_l;
-      exp -= shift_l;
-      shift_l_1 = !(shift_exponent_limited | p[2*mu_bits-1]);
-      p = shift_l_1 ? p << 1 : p;
-      exp += !shift_l_1;
-      p_h = p >> (mu_bits-1);
-      p_l &= (t_l(-1) >> shift_l) >> shift_l_1;
-      ac_int<mu_bits+2,false> p_bef_rnd = p_h;
-      p_bef_rnd <<= 1;
-      p_bef_rnd[0] = !!p_l;
-      r_rnd = p_bef_rnd;
-      m_r = r_rnd.template slc<mant_bits>(0);
-      bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && p_h == t_h(-1);
-      exp += rnd_ovf;
-      r_inf |= (exp_is_max & (!shift_l_1 | rnd_ovf)) | (exp_is_max_m1 & !shift_l_1 & rnd_ovf);
-      r_normal = r_rnd[mant_bits] | rnd_ovf;
-      r_zero |= !r_normal & No_SubNormals;
-      if(QR==AC_TRN_ZERO) {
-        exp = r_inf ? max_exp + exp_bias : exp;
-        m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
-        r_inf = false;
-      }
-    } else {
-      shift_l = max_shift_left;
-      exp -= shift_l;
-      unsigned shift_r_m1 = ~shift_l;
-      p_h = p >> (mu_bits-1);
-      t_h shifted_out_bits = p_h;
-      shifted_out_bits &= ~((~t_h(1)) << shift_r_m1);
-      p_h >>= shift_r_m1;
-      p_h >>= 1;
-      ac_int<mu_bits+2,false> p_bef_rnd = p_h;
-      p_bef_rnd <<= 1;
-      p_bef_rnd[0] = !!p_l | !!shifted_out_bits;
-      r_rnd = p_bef_rnd;
-      m_r = r_rnd.template slc<mant_bits>(0);
-      r_normal = false;
-      r_inf = false;
-      r_zero |= No_SubNormals;
+    typedef ac_int<2*mu_bits,false> mant_mult_t;
+    mant_mult_t p = op1_mu * op2_mu;
+
+    // sticky bits are all the bits that will not be taken into account into result (except for rounding)
+    // guard bit is the bit just before. If multiplication has msb to 1 then it will be part of sticky bits
+    // sticky bit is used to choose between
+    // -> XXX.1000 which will round to XXX
+    // -> XXX.1010 which will round to XXX+1
+    //         ^^^ those 3 bits are the sticky bits
+
+    ac_int<ac::nbits<mu_bits>::val,false> shift_left = 0;
+    ac_int<ac::nbits<mu_bits>::val,false> shift_right = 0;
+    bool do_shift_left = true;
+    bool do_shift_left_1 = exp != 0;
+    // correct exponent in case of subnormal operand
+    // compute shift
+    if (!No_SubNormals) {
+      // if both op1 and op2 are not normal, we know result will be zero by far, using only 1 op for leading sign is enough
+      // real computation would be op1_mu.leading_sign() + op2_mu.leading_sign()
+      shift_left = (unsigned) (op1_normal ? op2_mu : op1_mu).leading_sign();
+      int minus_exp = ~exp;// same as -exp-1
+      // saturate shift_right
+      //shift_right = minus_exp > ((1<<ac::nbits<mu_bits>::val)-1) ? mu_bits+1 : minus_exp;
+      //shift_right = minus_exp > mu_bits ? mu_bits+1 : minus_exp;
+      shift_right = ac_fixed<ac::nbits<mu_bits>::val,ac::nbits<mu_bits>::val,false,AC_TRN,AC_SAT>(minus_exp).to_ac_int();
+      int exp_minus_shift_left = exp - shift_left;
+      do_shift_left = exp >= 0;
+      do_shift_left_1 = exp_minus_shift_left > 0;
+      if (exp_minus_shift_left < 0)
+        shift_left = exp; // correct shift_left as it is bigger than exp
+      if (exp_minus_shift_left < 0)
+        exp = 0;
+      else
+        exp = exp_minus_shift_left;
     }
-    bool exception = op1_inf | op2_inf | op1_nan | op2_nan | r_inf;
-    ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
-    if(exception | r_zero) {
+
+    ac_fixed<mu_bits+2,mu_bits,false> res_bef_rnd;
+    bool e_incr = false;
+    // pre-compute exp+1
+    int exp_plus_1 = exp + 1;
+    if (do_shift_left) { // or no shift at all
+      p <<= shift_left;
+
+      mant_mult_t sticky_bit_mask = ~(mant_mult_t(-1)<<(mu_bits-2));
+      mant_mult_t guard_bit_mask = mant_mult_t(1)<<(mu_bits-2);
+      bool sticky_bit = !!(p & sticky_bit_mask);
+      bool guard_bit = !!(p & guard_bit_mask);
+
+      // compute rounding overflow
+      mant_mult_t mant_bit_mask = (~(mant_mult_t(-1)<<(mu_bits)))<<(mu_bits-1);
+      bool p_msb_all_one = (p & mant_bit_mask) == mant_bit_mask;
+      bool p_msb_one = p[2*mu_bits-1];
+
+      p_msb_all_one &= p_msb_one || !do_shift_left_1 || guard_bit;
+      sticky_bit |= guard_bit && (p_msb_one || !do_shift_left_1);
+      bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && p_msb_all_one;
+      e_incr |= rnd_ovf; // overflow in rounding, we know r_rnd will be "1000...000" so no need for shift because "1000...000"[msb-1:1] == "1000...000"[msb-2:0]
+
+      if (p_msb_one)
+        e_incr = true;
+      else if (do_shift_left_1)
+        p <<= 1;
+      res_bef_rnd = p >> (mu_bits-1);
+      res_bef_rnd >>= 1;
+      res_bef_rnd[0] = sticky_bit;
+    } else {
+      mant_mult_t sticky_bit_mask;
+      // we know sticky_bit_mask lsb will be "111...111"
+      // code below equivalent to sticky_bit_mask = ~((mant_mult_t(-1)<<mu_bits)<<shift_right);
+      ac_int<mu_bits, false> sticky_bit_mask_msb = -1;
+      sticky_bit_mask_msb <<= shift_right;
+      sticky_bit_mask_msb = ~sticky_bit_mask_msb;
+      sticky_bit_mask = sticky_bit_mask_msb;
+      sticky_bit_mask <<= mu_bits;
+      sticky_bit_mask |= ac_int<mu_bits, false>(-1);
+      bool sticky_bit = !!(p & sticky_bit_mask);
+
+      res_bef_rnd = p >> mu_bits;
+      res_bef_rnd >>= 1;
+      res_bef_rnd >>= shift_right;
+      res_bef_rnd[0] = sticky_bit;
+      // we know there will be no rounding overflow here because p is small enough
+    }
+
+    // do rounding
+    ac_fixed<mu_bits+1,mu_bits+1,false,QR> r_rnd;
+    r_rnd = res_bef_rnd;
+
+    // compute flags and adjust result
+    bool exp_ovf = (exp_plus_1 > max_exp + exp_bias + 1) // easy compute as max_exp+exp_bias+2 is a  power of 2
+                || (e_incr && (exp == max_exp + exp_bias));
+
+    bool zero_m = (No_SubNormals && !e_incr && exp == 0)
+               || (No_SubNormals && exp < 0)
+               || r_zero;
+
+    if (r_nan || r_inf || (exp_ovf && QR!=AC_TRN_ZERO))
+      exp = max_exp + exp_bias + 1;
+    else if (exp_ovf && QR==AC_TRN_ZERO)
+      exp = max_exp + exp_bias; // saturate res
+    else if (zero_m)
+      exp = 0;
+    else if (e_incr)
+      exp = exp_plus_1;
+
+    ac_int<mant_bits,false> m_r = r_rnd.template slc<mant_bits>(0);
+    if (r_nan || r_inf || zero_m || (exp_ovf && QR!=AC_TRN_ZERO)) {
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
+    else if (exp_ovf && QR==AC_TRN_ZERO)
+      m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
+    ac_int<E,true> e_r = exp;
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
     d_r[W-1] = r_sign;
@@ -1176,6 +1294,9 @@ public:
 
     op_lshift >>= (unsigned) e_dif;
     add_t add_r = op_lshift + op_no_shift;
+    bool add_exact_zero = !add_r & !sticky_bit;
+    bool r_neg = add_r[add_t::width-1];
+
     int exp = ( ((emult_lt_e3 & !op3_zero) | mult_zero) ? op3_e_b : mult_exp_b);
 
     bool all_sign;
@@ -1192,8 +1313,7 @@ public:
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.template slc<mu_bits+1>(mu_bits+2);
     bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && !add_r[2*mu_bits+3] && t == t_h(-1);
-    bool r_neg = r_rnd[mu_bits] ^ rnd_ovf;
-    bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : r_neg ^ toggle_r_sign;
+    bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : (r_neg ^ toggle_r_sign) & !add_exact_zero;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
     bool r_zero = !rnd_ovf & !r_rnd_i;
     bool shift_r = rnd_ovf | (r_neg & !r_rnd_i.template slc<mu_bits>(0));
@@ -1217,6 +1337,8 @@ public:
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
+    // -0 + -0 = -0 exception
+    r_sign |= mult_zero & mult_sign & op3_zero & op3_sign;
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
     d_r[W-1] = r_sign;
@@ -1291,6 +1413,7 @@ public:
     }
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
+    d_r[W-1] = op1_sign;
     ac_std_float r;
     r.set_data(d_r);
     return r;
@@ -1543,6 +1666,7 @@ public:
   static const int width = 1 << ((int)Format + 4);
   // exponents are {5,8,11,15,19}, but the first three are specialized elsewhere
   static const int e_width = 11 + ((int)Format - binary64)*4; // 11, 15, 19
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   static const int lls = width >> 6;
   typedef long long (data_t)[lls];
   typedef ac_std_float<width,e_width> ac_std_float_t;
@@ -1601,6 +1725,7 @@ template<> class ac_ieee_float_base<binary16> {
 public:
   static const int width = 16;
   static const int e_width = 5;
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   typedef ac_std_float<width,e_width> ac_std_float_t;
   typedef short data_t;
   typedef ac_std_float<width,e_width> helper_t;
@@ -1722,6 +1847,7 @@ template<> class ac_ieee_float_base<binary32> {
 public:
   static const int width = 32;
   static const int e_width = 8;
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   typedef ac_std_float<width,e_width> ac_std_float_t;
 #ifdef AC_IEEE_FLOAT_USE_BUILTIN
   typedef float data_t;
@@ -1859,6 +1985,7 @@ template<> class ac_ieee_float_base<binary64> {
 public:
   static const int width = 64;
   static const int e_width = 11;
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   typedef ac_std_float<width,e_width> ac_std_float_t;
 #ifdef AC_IEEE_FLOAT_USE_BUILTIN
   typedef double data_t;
@@ -1982,6 +2109,7 @@ public:
   };
   static const int width = Base::width;
   static const int e_width = Base::e_width;
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   static const int lls = width >> 6;
   typedef typename Base::data_t data_t;
   typedef typename Base::helper_t helper_t;
@@ -2056,7 +2184,7 @@ public:
   inline static std::string type_name() {
     std::string r = "ac_ieee_float<binary";
     const char *format[] = {"16", "32", "64", "128", "256"};
-    r += format[(int)Format]; 
+    r += format[(int)Format];
     r += ">";
     return r;
   }
@@ -2212,6 +2340,7 @@ public:
   };
   static const int width = 16;
   static const int e_width = 8;
+  static const int exp_bias = (1 << (e_width-1)) - 1;
   static bfloat16 nan() { return bfloat16(helper_t::nan()); }
   static bfloat16 inf() { return bfloat16(helper_t::inf()); }
   static bfloat16 denorm_min() { return bfloat16(helper_t::denorm_min()); }
