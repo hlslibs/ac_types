@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Mon Feb  6 10:58:35 PST 2023                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.6.3                                               *
  *                                                                        *
  *  Copyright 2008-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -110,7 +110,7 @@ public:
   template<typename T2>
   ac_complex(const ac_complex<T2> &c) : _r(c.r()), _i(c.i()) {}
   template<typename T2>
-  ac_complex(const T2 &r) : _r(r), _i(0) {}
+  ac_complex(const T2 &r) : _r(r), _i(T2(0)) {}
   template<typename T2, typename T3>
   ac_complex(const T2 &r, const T3 &i) : _r(r), _i(i) {}
   const T &r() const { return _r; }

@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Mon Feb  6 10:58:35 PST 2023                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.6.3                                               *
  *                                                                        *
  *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -55,7 +55,7 @@ ac_int<W, true> to_ac(const sc_dt::sc_bigint<W> &val){
   sc_dt::sc_bigint<N*32> v = val;
   ac_int<N*32, true> r = 0;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
@@ -70,7 +70,7 @@ ac_int<W, false> to_ac(const sc_dt::sc_biguint<W> &val){
   sc_dt::sc_biguint<N*32> v = val;
   ac_int<N*32, true> r = 0;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
@@ -85,7 +85,7 @@ sc_dt::sc_bigint<W> to_sc(const ac_int<W,true> &val) {
   ac_int<N*32, true> v = val;
   sc_dt::sc_bigint<N*32> r;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = N-1; i >= 0; i--) {
     r <<= 32;
@@ -100,7 +100,7 @@ sc_dt::sc_biguint<W> to_sc(const ac_int<W,false> &val) {
   ac_int<N*32, true> v = val;
   sc_dt::sc_biguint<N*32> r;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = N-1; i >= 0; i--) {
     r <<= 32;

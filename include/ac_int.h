@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.6                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Mon Feb  6 10:58:35 PST 2023                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.6.3                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -566,7 +566,7 @@ namespace ac_private {
   template<int N1, int N2, int Nr>
   inline void iv_add(const int *op1, const int *op2, int *r) {
     if(Nr==1)
-      r[0] = op1[0] + op2[0];
+      r[0] = (unsigned) op1[0] + (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
       const int M2 = AC_MIN(N1,N2);
@@ -581,7 +581,7 @@ namespace ac_private {
     }
   }
   template<> inline void iv_add<1,1,1>(const int *op1, const int *op2, int *r) {
-    r[0] = op1[0] + op2[0];
+    r[0] = (unsigned) op1[0] + (unsigned) op2[0];
   }
   template<> inline void iv_add<1,1,2>(const int *op1, const int *op2, int *r) {
     iv_assign_int64<2>(r, (Slong) op1[0] + (Slong) op2[0]);
@@ -666,7 +666,7 @@ namespace ac_private {
   template<int N1, int N2, int Nr>
   inline void iv_sub(const int *op1, const int *op2, int *r) {
     if(Nr==1)
-      r[0] = op1[0] - op2[0];
+      r[0] = (unsigned) op1[0] - (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
       const int M2 = AC_MIN(N1,N2);
@@ -681,7 +681,7 @@ namespace ac_private {
     }
   }
   template<> inline void iv_sub<1,1,1>(const int *op1, const int *op2, int *r) {
-    r[0] = op1[0] - op2[0];
+    r[0] = (unsigned) op1[0] - (unsigned) op2[0];
   }
   template<> inline void iv_sub<1,1,2>(const int *op1, const int *op2, int *r) {
     iv_assign_int64<2>(r, (Slong) op1[0] - (Slong) op2[0]);
