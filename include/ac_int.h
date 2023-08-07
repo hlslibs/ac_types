@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.7                                                 *
  *                                                                        *
- *  Release Date    : Mon Feb  6 10:58:35 PST 2023                        *
+ *  Release Date    : Tue Jul 18 16:56:08 PDT 2023                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.3                                               *
+ *  Release Build   : 4.7.0                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -2628,7 +2628,20 @@ public:
     return (uindex < W) ? (Base::v[uindex>>5]>>(uindex&31) & 1) : 0;
   }
 
-  ac_int<W,false> reverse() const {
+  void reverse() {
+    if(W > 32) {
+      typedef ac_int<W,true> intW_t;
+      typename intW_t::Base r0(*this);
+      intW_t r;
+      r0.reverse(r);
+      r.template const_shift_r<intW_t::N,(32-W)&31>(r);
+      *this=ac_int<W,false>(r);
+    } else {
+      *this=ac_int<W,false>(ac_private::reverse_u<W>((unsigned)Base::v[0]));
+    }
+  }
+
+  ac_int<W,false> reversed() const {
     if(W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);
