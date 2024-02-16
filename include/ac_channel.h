@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.7                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Tue Jul 18 16:56:08 PDT 2023                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.7.0                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *

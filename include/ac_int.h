@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.7                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Tue Jul 18 16:56:08 PDT 2023                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.7.0                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 4
-#define AC_VERSION_MINOR 6
+#define AC_VERSION_MINOR 8
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
