@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -54,6 +54,10 @@
 // not directly used by this include
 #include <stdio.h>
 #include <stdlib.h>
+
+#if !defined(CCS_SCVERIFY) && !defined(__SYNTHESIS__) && defined(AC_CHANNEL_READ_FAIL_TB)
+#include <ac_stacktrace.h>
+#endif
 
 // Macro Definitions (obsolete - provided here for backward compatibility)
 #define AC_CHAN_CTOR(varname) varname
@@ -226,6 +230,18 @@ public:
           //      cout << myInputChan.read();
           //      cout << myInputChan.read();
           //    }
+#if !defined(CCS_SCVERIFY) && !defined(__SYNTHESIS__) && defined(AC_CHANNEL_READ_FAIL_TB)
+          if (empty()) {
+            std::cerr << std::endl << "Error: Empty channel read attempt from here:" << std::endl;
+            std::stringstream key;
+            // call stack will be #1 ac_channel<T>::fifo::fifo_ac_channel::read()
+            //                    #2 ac_channel<T>::fifo::fifo::read()
+            //                    #3 ac_channel<T>::read()
+            //                    #4 < user code >
+            ac_debug::build_stack_key(key,4); // move up four frames to start at user code
+            std::cerr << ac_debug::format_stack_trace(key.str()) << std::endl;
+          }
+#endif
           AC_CHANNEL_ASSERT(!empty(), ac_channel_exception::read_from_empty_channel);
         }
         T t = ch.front();

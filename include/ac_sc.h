@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -55,7 +55,7 @@ ac_int<W, true> to_ac(const sc_dt::sc_bigint<W> &val){
   sc_dt::sc_bigint<N*32> v = val;
   ac_int<N*32, true> r = 0;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
@@ -70,7 +70,7 @@ ac_int<W, false> to_ac(const sc_dt::sc_biguint<W> &val){
   sc_dt::sc_biguint<N*32> v = val;
   ac_int<N*32, true> r = 0;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
@@ -85,7 +85,7 @@ sc_dt::sc_bigint<W> to_sc(const ac_int<W,true> &val) {
   ac_int<N*32, true> v = val;
   sc_dt::sc_bigint<N*32> r;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = N-1; i >= 0; i--) {
     r <<= 32;
@@ -100,7 +100,7 @@ sc_dt::sc_biguint<W> to_sc(const ac_int<W,false> &val) {
   ac_int<N*32, true> v = val;
   sc_dt::sc_biguint<N*32> r;
 #ifdef __SYNTHESIS__
-#pragma UNROLL y
+#pragma hls_unroll y
 #endif
   for(int i = N-1; i >= 0; i--) {
     r <<= 32;
@@ -318,16 +318,64 @@ namespace ac {
 //                    2.3.0 20120701
 //                    2.3.1 20140417
 //                    2.3.2 20171012
+//                    2.3.3 20181013
 
-#if !defined(NCSC)
-#if (SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
+//NOTE: The following classes are not exposed in SystemC distributions by default.
+// To support VCD tracing with AC types it is necessary to extend the vcd_trace class for
+//  tracing to work correctly and display correct binary values.
+// Below is the minimal exposure necessary to integrate the AC types.
+
+// CDS adjustment:
+// Older Cadence simulators using SystemC 2.3.0 expose the vcd_trace class, which will
+//  be used here. AC types VCD tracing is disabled as of 22.09 (systemC 2.3.3).
+#if defined(NCSC) || defined(NC_SYSTEMC) || defined(XM_SYSTEMC)
+#if !defined(NCSC) //SCVerify defines NCSC, others may not
+#define NCSC_OVERRIDE
+#define NCSC
+#endif
+#if !defined(SYSTEMC_VERSION) //Cadence uses the tool version sequence for SystemC
+#define SYSTEMC_VERSION_OVERRIDE
+#if (SC_VERSION_MAJOR == 22 && SC_VERSION_MINOR == 9) || (SC_VERSION_MAJOR > 22) // >= 22.09
+#define SYSTEMC_VERSION 20181013
+#else
+#define SYSTEMC_VERSION 20120701
+#endif
+#endif
+#if (SYSTEMC_VERSION >= 20181013)
+#define ENABLE_AC_VCD_TRACE 0 //disable tracing
+#endif
+#endif //NCSC || NC_SYSTEMC || XM_SYSTEMC
+
+// The macro SC_TRACING_PHASE_CALLBACKS_ == 1 is used in the SystemC 2.3.1+ distribution sources to
+//  enable new tracing callbacks in the kernel. It changes the memory footprint of the sc_trace_file_base
+//  class by deriving from sc_object.
+// When building SystemC the configure option is --enable-phase-callbacks. This is a 
+//  library build option and the macro is not preserved for later use.
+// Therefor if phase callbacks are enabled in the kernel then also provide the macro here,
+//  otherwise the simulation may crash.
+
+// COSIDE adjustment:
+#if defined(COSEDA_FIX_PHASE_CALLBACKS) && !defined(SC_TRACING_PHASE_CALLBACKS_)
+#define SC_TRACING_PHASE_CALLBACKS_ 1
+#endif
+
+// Disabling VCD tracing for AC types prevents exposing vcd_trace, etc. The 
+//  overloaded sc_trace functions will be a no-op. 
+#if !defined(ENABLE_AC_VCD_TRACE)
+#define ENABLE_AC_VCD_TRACE 1
+#endif
+
+#if !defined(NCSC) && (ENABLE_AC_VCD_TRACE == 1)
 namespace sc_core {
 class vcd_trace;
+#if (SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
 class sc_trace_file_base
   : public sc_trace_file
+#if (SC_TRACING_PHASE_CALLBACKS_ == 1)
+  , private sc_object // to be used as callback target
+#endif
 {
 public:
-    enum vcd_enum {VCD_WIRE=0, VCD_REAL, VCD_EVENT, VCD_TIME, VCD_LAST};
     virtual void do_initialize() = 0;
     FILE* fp;
 #if (SYSTEMC_VERSION >= 20171012)
@@ -341,10 +389,14 @@ public:
     bool        trace_delta_cycles_;
     virtual ~sc_trace_file_base();
 };
+#endif //(SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
+
+#if (SYSTEMC_VERSION >= 20140417) && !defined(SC_VCD_TRACE_H)
 class vcd_trace_file
   : public sc_trace_file_base
 {
 public:
+    enum vcd_enum {VCD_WIRE=0, VCD_REAL, VCD_EVENT, VCD_TIME, VCD_LAST};
     ~vcd_trace_file();
     std::string obtain_name();
     virtual void do_initialize();
@@ -356,10 +408,8 @@ public:
 #endif
     std::vector<vcd_trace*> traces;
 };
-}
-#endif
+#endif //(SYSTEMC_VERSION >= 20140417) && !defined(SC_VCD_TRACE_H)
 
-namespace sc_core {
 //==============================================================================
 // The following block of code is copied from the file sc_vcd_trace.cpp in the
 // SystemC distribution. This code should have been placed in the file
@@ -393,15 +443,15 @@ public:
 #endif
     int bit_width;
 };
-}
-#endif
+} //namespace sc_core
+#endif //!defined(NCSC) && (ENABLE_AC_VCD_TRACE == 1)
 
 #ifdef __AC_NAMESPACE
 namespace __AC_NAMESPACE {
 #endif
 
 namespace ac_tracing {
-
+#if (ENABLE_AC_VCD_TRACE == 1)
 //==============================================================================
 // TRACING SUPPORT FOR AC_INT
 template <int W, bool S>
@@ -437,14 +487,38 @@ protected:
   ac_int<W,S>        old_value;
 };
 
+#else
+inline void warn_no_ac_vcd_trace () {
+  static bool warn_msg = false;
+  if (!warn_msg) {
+    SC_REPORT_WARNING("AC_SC-1", "VCD tracing for AC types is disabled.");
+    warn_msg = true;
+  }
+}
+#endif //ENABLE_AC_VCD_TRACE
+
+// Cleanup macro overrides
+#if defined(NCSC_OVERRIDE)
+#undef NCSC_OVERRIDE
+#undef NCSC
+#endif
+#if defined(SYSTEMC_VERSION_OVERRIDE)
+#undef SYSTEMC_VERSION_OVERRIDE
+#undef SYSTEMC_VERSION
+#endif
+
 template <int W, bool S>
 inline void sc_trace(sc_core::sc_trace_file *tf, const ac_int<W,S> &a, const std::string &name)
 {
+#if (ENABLE_AC_VCD_TRACE == 1)
   using namespace sc_core;
   if (tf) {
     vcd_trace *t = (vcd_trace*) new vcd_ac_int_trace<W,S>(a,name,((vcd_trace_file*)tf)->obtain_name());
     ((vcd_trace_file*)tf)->traces.push_back(t);
   }
+#else
+  warn_no_ac_vcd_trace();
+#endif
 }
 //==============================================================================
 

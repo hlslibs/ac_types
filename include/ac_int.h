@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -65,7 +65,7 @@
 #define __AC_INT_H
 
 #define AC_VERSION 4
-#define AC_VERSION_MINOR 6
+#define AC_VERSION_MINOR 8
 
 #ifndef __cplusplus
 #error C++ is required to include this header file
@@ -566,7 +566,7 @@ namespace ac_private {
   template<int N1, int N2, int Nr>
   inline void iv_add(const int *op1, const int *op2, int *r) {
     if(Nr==1)
-      r[0] = op1[0] + op2[0];
+      r[0] = (unsigned) op1[0] + (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
       const int M2 = AC_MIN(N1,N2);
@@ -581,7 +581,7 @@ namespace ac_private {
     }
   }
   template<> inline void iv_add<1,1,1>(const int *op1, const int *op2, int *r) {
-    r[0] = op1[0] + op2[0];
+    r[0] = (unsigned) op1[0] + (unsigned) op2[0];
   }
   template<> inline void iv_add<1,1,2>(const int *op1, const int *op2, int *r) {
     iv_assign_int64<2>(r, (Slong) op1[0] + (Slong) op2[0]);
@@ -666,7 +666,7 @@ namespace ac_private {
   template<int N1, int N2, int Nr>
   inline void iv_sub(const int *op1, const int *op2, int *r) {
     if(Nr==1)
-      r[0] = op1[0] - op2[0];
+      r[0] = (unsigned) op1[0] - (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
       const int M2 = AC_MIN(N1,N2);
@@ -681,7 +681,7 @@ namespace ac_private {
     }
   }
   template<> inline void iv_sub<1,1,1>(const int *op1, const int *op2, int *r) {
-    r[0] = op1[0] - op2[0];
+    r[0] = (unsigned) op1[0] - (unsigned) op2[0];
   }
   template<> inline void iv_sub<1,1,2>(const int *op1, const int *op2, int *r) {
     iv_assign_int64<2>(r, (Slong) op1[0] - (Slong) op2[0]);
@@ -2629,7 +2629,20 @@ public:
     return (uindex < W) ? (Base::v[uindex>>5]>>(uindex&31) & 1) : 0;
   }
 
-  ac_int<W,false> reverse() const {
+  void reverse() {
+    if(W > 32) {
+      typedef ac_int<W,true> intW_t;
+      typename intW_t::Base r0(*this);
+      intW_t r;
+      r0.reverse(r);
+      r.template const_shift_r<intW_t::N,(32-W)&31>(r);
+      *this=ac_int<W,false>(r);
+    } else {
+      *this=ac_int<W,false>(ac_private::reverse_u<W>((unsigned)Base::v[0]));
+    }
+  }
+
+  ac_int<W,false> reversed() const {
     if(W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);

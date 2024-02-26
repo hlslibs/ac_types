@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2005-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -63,8 +63,22 @@
 #endif
 
 #ifdef __SYNTHESIS__
+// disable all class extensions when doing synthesis
 #ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
 #undef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+#endif
+#define AC_FIXED_VRA_DISABLE(a)
+#else
+#ifdef AC_FIXED_VRA
+// Note that the value range analysis feature of AC Fixed is only available with a full
+// Catapult installation.
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+#undef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+#endif
+#include "ovf_ac_fixed.h"
+#define AC_FIXED_VRA_DISABLE(a) a.vra_enabled(false);
+#else
+#define AC_FIXED_VRA_DISABLE(a)
 #endif
 #endif
 
@@ -304,7 +318,11 @@ public:
     };
   };
 
-  ac_fixed(const ac_fixed &op): Base(op) { }
+  ac_fixed(const ac_fixed &op): Base(op)
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+    , __AC_FIXED_NUMERICAL_ANALYSIS_BASE(op)
+#endif
+  { }
 
   template<int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2> friend class ac_fixed;
   ac_fixed() {
@@ -358,8 +376,12 @@ public:
     __AC_FIXED_NUMERICAL_ANALYSIS_BASE::update(overflow,neg_src,op);
 #endif
     }
-    else
+    else {
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+    __AC_FIXED_NUMERICAL_ANALYSIS_BASE::update(false,false,op);
+#endif
       bit_adjust();
+    }
   }
 
   template<int W2, bool S2>
@@ -416,8 +438,12 @@ public:
 #ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
       __AC_FIXED_NUMERICAL_ANALYSIS_BASE::update(overflow,neg_src,d);
 #endif
-    } else
+    } else {
       bit_adjust();
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+      __AC_FIXED_NUMERICAL_ANALYSIS_BASE::update(false,neg_src,d);
+#endif
+    }
   }
 
 #if (defined(_MSC_VER) && !defined(__EDG__))
@@ -458,6 +484,9 @@ public:
       const unsigned int rem = (32-W - (unsigned) !S )&31;
       Base::v[N-1] = ((unsigned) (-1) >> 1) >> rem;
     }
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+    __AC_FIXED_NUMERICAL_ANALYSIS_BASE::update(false,S,this->to_double());
+#endif
     return *this;
   }
 #if (defined(_MSC_VER) && !defined(__EDG__))
@@ -1557,5 +1586,12 @@ namespace ac {
 #ifdef __AC_NAMESPACE
 }
 #endif
+
+#ifdef AC_FIXED_VRA
+// Note that the value range analysis feature of AC Fixed is only available with a full
+// Catapult installation.
+#include "ovf_ac_fixed_fns.h"
+#endif
+
 
 #endif // __AC_FIXED_H

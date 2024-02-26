@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.6                                                 *
+ *  Software Version: 4.8                                                 *
  *                                                                        *
- *  Release Date    : Fri Aug 19 11:20:11 PDT 2022                        *
+ *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.6.1                                               *
+ *  Release Build   : 4.8.0                                               *
  *                                                                        *
  *  Copyright 2018-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -181,21 +181,22 @@ namespace ac {
   #pragma hls_ccore_type sequential
 #endif
   template<int W>
-  void fx_div(ac_int<W,false> op1, ac_int<W,false> op2, ac_int<W+2,false> &quotient, bool &exact) {
+  void fx_div(ac_int<W,false> const & op1, ac_int<W,false> const & op2, ac_int<W+2,false> &quotient, bool &exact) {
     ac_int<W+2,true> R = op1;
-    bool R_neg = false;
     ac_int<W,false> D = op2;
-    ac_int<W+1,true> neg_D = -D;
     ac_int<W+2,false> Q = 0;
-    for(int i=0; i < W+2; i++) {
+    for(int i=W+1; i >= 0; i--) {
       // take MSB of N, shift it in from right to R
-      R += ( R_neg ? (ac_int<W+1,true>) D : neg_D );
-      Q = (Q << 1) | ((R >= 0) & 1);
-      R_neg = R[W];
-      R <<= 1;
+      ac_int<W+2,true> nextR = R - D;
+      Q <<= 1;
+      if (nextR[W] == 0)
+        Q += 1;
+      else
+        nextR = R;
+      R = nextR << 1;
     }
     quotient = Q;
-    exact = !R | R_neg & (R >> 1) == neg_D;
+    exact = !R;
   }
 
   template<int W>
@@ -1136,11 +1137,12 @@ public:
     bool exp_ovf = (exp_plus_1 > max_exp + exp_bias + 1) // easy compute as max_exp+exp_bias+2 is a  power of 2
                 || (e_incr && (exp == max_exp + exp_bias));
 
-    bool zero_m = (No_SubNormals && !e_incr && exp == 0)
-               || (No_SubNormals && exp < 0)
-               || r_zero;
+    bool r_normal = !( (!e_incr && exp == 0) || (exp < 0) );
+    r_inf |= (exp_ovf && QR!=AC_TRN_ZERO);
+    bool zero_m = r_zero
+               || (No_SubNormals && !r_normal);
 
-    if (r_nan || r_inf || (exp_ovf && QR!=AC_TRN_ZERO))
+    if (r_nan || r_inf)
       exp = max_exp + exp_bias + 1;
     else if (exp_ovf && QR==AC_TRN_ZERO)
       exp = max_exp + exp_bias; // saturate res
@@ -1182,6 +1184,8 @@ public:
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
     bool r_sign = op1_sign ^ op2_sign;
+    bool r_nan = op1_nan | op2_nan | (op1_zero & op2_zero) | (op1_inf & op2_inf);
+    bool r_zero = op1_zero | op2_inf;
     int ls_op1 = No_SubNormals ? 0 : (unsigned) op1_mu.leading_sign();
     op1_mu <<= ls_op1;
     int ls_op2 = No_SubNormals ? 0 : (unsigned) op2_mu.leading_sign();
@@ -1200,29 +1204,46 @@ public:
     q <<= 1;
     int shift_r = min_exp + exp_bias - exp;
     bool sticky_bit = !exact;
-    if(shift_r >= 0) {
-      typedef ac_int<mu_bits+3,false> t_t;
-      t_t shifted_out_bits = q;
-      shifted_out_bits &= ~((~t_t(0)) << shift_r);
-      sticky_bit |= !!shifted_out_bits;
-      q >>= shift_r;
-      exp += shift_r;
-    } else {
-      bool shift_l = !q[mu_bits+2];
-      q <<= shift_l;
-      exp -= shift_l;
+    bool shift_l = false;
+    if (No_SubNormals) {
+      if (exp < 0) {
+        r_zero = true;
+      } else if ((exp>>1) == 0) { // exp==0 || exp==1
+        if ((exp&1) == 0) { // exp==0
+          q >>= 1;
+          exp = 1;
+        }
+        // else exp==1 do not change any data
+      } else {// exp > 1
+        shift_l = !q[mu_bits+2];
+        if (shift_l)
+          q <<= 1;
+          // if shift_l then exp will also be decremented
+      }
+    } else {//!No_SubNormals
+      if (shift_r >= 0) {
+        typedef ac_int<mu_bits+3,false> t_t;
+        t_t shifted_out_bits = q;
+        shifted_out_bits &= ~((~t_t(0)) << shift_r);
+        sticky_bit |= !!shifted_out_bits;
+        q >>= shift_r;
+        exp += shift_r;
+      } else {
+        shift_l = !q[mu_bits+2];
+        if (shift_l)
+          q <<= 1;
+      }
     }
     q[0] = q[0] | sticky_bit;
     ac_fixed<mu_bits+1,mu_bits+4,false,QR> r_rnd = q;
     bool rnd_ovf = r_rnd[mu_bits];
     ac_int<mant_bits,false> m_r = r_rnd.template slc<mant_bits>(0);
     bool r_normal = r_rnd[mant_bits] | rnd_ovf;
-    bool r_nan = op1_nan | op2_nan | (op1_zero & op2_zero) | (op1_inf & op2_inf);
-    bool r_zero = op1_zero | op2_inf;
     r_zero |= !r_normal & No_SubNormals;
     exp += rnd_ovf;
+    exp -= shift_l;
     bool r_inf0 = op1_inf | op2_zero;  // this is not affected by rounding
-    bool r_inf = (!r_zero & (exp > max_exp + exp_bias)) | r_inf0;
+    bool r_inf = (!r_zero & ((exp > max_exp + exp_bias + 1) || (exp == max_exp + exp_bias + 1))) | r_inf0;
     if(QR==AC_TRN_ZERO && !r_inf0) {
       exp = r_inf ? max_exp + exp_bias : exp;
       m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
