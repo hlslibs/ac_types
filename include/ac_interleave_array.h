@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -48,7 +48,8 @@ template <typename B, size_t FirstDim, size_t InterleaveFactor>
 class ac_interleave_array_1D
 {
   public: // required public for SCVerify
-    ac_bank_array_2D<B, InterleaveFactor, FirstDim/InterleaveFactor> mem_bank;
+    static constexpr size_t SecondDim = (FirstDim/InterleaveFactor + (FirstDim%InterleaveFactor != 0) );
+    ac_bank_array_2D<B, InterleaveFactor, SecondDim> mem_bank;
     static const size_t W = FirstDim;
 
     ac_interleave_array_1D () {
@@ -64,9 +65,12 @@ class ac_interleave_array_1D
 #ifndef __SYNTHESIS__
       assert(idx < FirstDim);
 #endif
-      size_t aidx = idx & (W-1);
+      size_t aidx = idx;
       size_t bank_idx = aidx&(InterleaveFactor-1); // low order address bits select the bank
       size_t block_idx = aidx>>(BankBits(InterleaveFactor));  // high order address bits select the blocks within the bank
+#ifndef __SYNTHESIS__
+      assert(block_idx < SecondDim);
+#endif
       return mem_bank[bank_idx][block_idx];
    }
 
@@ -74,7 +78,7 @@ class ac_interleave_array_1D
 #ifndef __SYNTHESIS__
       assert(idx < FirstDim);
 #endif
-      size_t aidx = idx & (W-1);
+      size_t aidx = idx;
       size_t bank_idx = aidx&(InterleaveFactor-1); // low order address bits select the bank
       size_t block_idx = aidx>>(BankBits(InterleaveFactor)); // high order address bits select the blocks within the bank
       return mem_bank[bank_idx][block_idx];

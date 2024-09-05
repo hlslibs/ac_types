@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -116,6 +116,7 @@
 #include <ostream>
 #endif
 #include <math.h>
+#include <fstream>
 #include <string>
 
 #ifndef __SYNTHESIS__
@@ -123,6 +124,25 @@
 #define __AC_INT_UTILITY_BASE
 #endif
 
+#endif
+
+#ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+#undef __AC_INT_NUMERICAL_ANALYSIS_BASE
+#endif
+
+// VRA-related includes and definitions.
+#ifdef __SYNTHESIS__
+// disable all class extensions when doing synthesis
+#define AC_INT_VRA_DISABLE(a)
+#else // VRA kicks in outside of HLS.
+#ifdef AC_INT_VRA
+// Note that the value range analysis feature of AC Int is only available with a full
+// Catapult installation.
+#include "ovf_ac_int.h"
+#define AC_INT_VRA_DISABLE(a) a.disable_vra();
+#else
+#define AC_INT_VRA_DISABLE(a)
+#endif
 #endif
 
 #ifdef __AC_NAMESPACE
@@ -184,17 +204,15 @@ namespace ac_private {
   struct s_N {
     template<unsigned X>
     struct s_X {
-      enum {
-        X2 = X >> N,
-        N_div_2 = N >> 1,
-        nbits = X ? (X2 ? N + (int) s_N<N_div_2>::template s_X<X2>::nbits : (int) s_N<N_div_2>::template s_X<X>::nbits) : 0
-      };
+      static const int X2 = static_cast<int>(X >> N);
+      static const unsigned char N_div_2 = (N >> 1);
+      static const int nbits = X ? (X2 ? N + (int) s_N<N_div_2>::template s_X<X2>::nbits : (int) s_N<N_div_2>::template s_X<X>::nbits) : 0;
     };
   };
   template<> struct s_N<0> {
     template<unsigned X>
     struct s_X {
-      enum {nbits = !!X };
+      static const int nbits = static_cast<int>(!!X);
     };
   };
 
@@ -769,7 +787,7 @@ namespace ac_private {
         uw4 n1 = odd ?
           (uw4) ((r1[k_msi+1] << w1_length) | (r1[k_msi] >> w1_length)) << w2_length | ((r1[k_msi] << w1_length) | (r1m1 >> w1_length)) :
           (uw4) r1[k_msi] << w2_length | r1m1;
-        uw2 q1 = n1/d1;
+        uw2 q1 = ((uw2) (n1/d1));
         if(q1 >> w1_length)
           q1--;
         AC_ASSERT(!(q1 >> w1_length), "Problem detected in long division algorithm, Please report");
@@ -1034,7 +1052,7 @@ namespace ac_private {
     Ulong vop1 =
         (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
     vop1 = op2 < 64 ? vop1 << op2 : (Ulong) 0;
-    r[0] = vop1;
+    r[0] = static_cast<int>(vop1);
   }
   template<> inline void iv_shift_l<2,2>(const int *op1, unsigned op2, int *r) {
     Ulong vop1 =
@@ -1067,7 +1085,7 @@ namespace ac_private {
     Slong vop1 =
         (static_cast<Ulong>(op1[1]) << 32) | static_cast<unsigned int>(op1[0]);
     vop1 = (op2 < 64) ? (vop1 >> op2) : (vop1 >> 63);
-    r[0] = vop1;
+    r[0] = static_cast<int>(vop1);
   }
   template<> inline void iv_shift_r<2,2>(const int *op1, unsigned op2, int *r) {
     Slong vop1 =
@@ -1214,8 +1232,12 @@ namespace ac_private {
         r[--k] = 0;
     }
     for(int i = 0; i < n; i++) {
-      if (b != AC_BIN && bits < 0)
-        r[k] += (unsigned char) (( (unsigned) v[i] << (B+bits)) & (b-1));
+      if (b != AC_BIN && bits < 0) {
+        // This is a roundabout way to do the accumulation but it also prevents conversion warnings
+        // from showing up when using certain compilers.
+        unsigned char add_val = (unsigned char) (( (unsigned) v[i] << (B+bits)) & (b-1));
+        r[k] = (char) (r[k] + add_val);
+      }
       unsigned int m = (unsigned) v[i] >> -bits;
       for(bits += 32; bits > 0 && k; bits -= B) {
         r[--k] = (char) (m & (b-1));
@@ -1242,7 +1264,7 @@ namespace ac_private {
         Ulong l = 0;
         for(int i=lsw; i <= msw; i++) {
           l += (Ulong) (unsigned) v[i] * 10;
-          v[i] = l;
+          v[i] = (int) l;
           l >>= 32;
           if(i==lsw && !v[i])
             lsw++;
@@ -1257,7 +1279,7 @@ namespace ac_private {
         for(int i = msw; i >= 0; i--) {
           nl <<= 32;
           nl |= (unsigned) v[i];
-          unsigned q = nl/d;
+          unsigned q = (unsigned) (nl/d);
           nl -= (Ulong) q * d;
           v[i] = q;
         }
@@ -1965,7 +1987,14 @@ class ac_int : public ac_private::iv_conv<(W+31+!S)/32, S, W<=64>
 #ifndef __SYNTHESIS__
 __AC_INT_UTILITY_BASE
 #endif
+#ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+, public __AC_INT_NUMERICAL_ANALYSIS_BASE
+#endif
 {
+  #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+  typedef __AC_INT_NUMERICAL_ANALYSIS_BASE NumBase;
+  #endif
+
 #if defined(__SYNTHESIS__) && !defined(AC_IGNORE_BUILTINS)
 #pragma builtin
 #endif
@@ -1980,20 +2009,92 @@ __AC_INT_UTILITY_BASE
                   ((unsigned) Base::v[N-1]  << rem) >> rem : 0);
   }
 
+  #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+  template <int W2, bool S2>
+  inline void bit_adjust_vra(const ac_int<W2, S2> &orig_in, bool is_ppo2 = false) {
+    bit_adjust();
+    NumBase::update(orig_in.to_double(), ovf_vra(orig_in), is_ppo2);
+  }
+
+  template <class T>
+  inline void bit_adjust_vra(const T orig_in, bool is_ppo2 = false) {
+    bit_adjust();
+    double orig_double = (double)orig_in; // Convert to double if the input isn't already a double value.
+    NumBase::update(orig_double, ovf_vra(orig_in), is_ppo2);
+  }
+
+  inline void this_update() {
+    NumBase::update(this->to_double(), false, is_ppo2_ac_int(*this));
+  }
+
+  inline static ac_int get_max_vra() {
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    return r.template set_val<AC_VAL_MAX>();
+  }
+
+  inline static ac_int get_min_vra() {
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    return r.template set_val<AC_VAL_MIN>();
+  }
+
+  inline static bool ovf_vra(double input) {
+    static const double min_val = get_min_vra().to_double();
+    static const double max_val = get_max_vra().to_double();
+    return (input < min_val || input > max_val);
+  }
+
+  template <int W2, bool S2>
+  inline static bool ovf_vra(const ac_int<W2, S2> &input) {
+    if (S == S2 && W >= W2) {
+      return false;
+    }
+
+    if (S && !S2 && (W - 1 >= W2)) {
+      return false;
+    }
+
+    static const ac_int min_val = get_min_vra();
+    static const ac_int max_val = get_max_vra();
+
+    return (input < min_val || input > max_val);
+  }
+
+  template <class T>
+  inline static bool ovf_vra(T input) {
+    constexpr bool S2 = std::is_signed<T>::value;
+    constexpr int W2 = std::numeric_limits<T>::digits + int(S2);
+    constexpr int N2 = (W2 + 31 + !S2)/32;
+    typedef ac_private::iv<N2> Base2;
+    ac_int<W2, S2> input_(AC_VRA_STACK_NOT_TRACED);
+    input_.Base2::operator =(input);
+    return ovf_vra(input_);
+  }
+  
+  ac_int(ac_vra_stack_trace_modes strace_mode_) : NumBase(strace_mode_) {
+    #ifdef AC_DEFAULT_IN_RANGE
+    bit_adjust();
+    #endif
+  }
+  #endif
+
   inline bool is_neg() const { return S && Base::v[N-1] < 0; }
 
   // returns false if number is denormal
   template<int WE, bool SE>
   bool normalize_private(ac_int<WE,SE> &exp, bool reserved_min_exp=false) {
-    int expt = exp;
-    int lshift = leading_sign();
+    int expt = exp.to_int();
+    int lshift = leading_sign().to_int();
     bool fully_normalized = true;
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<WE, SE> min_exp(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int<WE, SE> min_exp;
+    #endif
     min_exp.template set_val<AC_VAL_MIN>();
-    int max_shift = exp - min_exp - reserved_min_exp;
+    int max_shift = (exp - min_exp - reserved_min_exp).to_int();
     if(lshift > max_shift) {
-      lshift = ac_int<WE,false>(max_shift);
-      expt = min_exp + reserved_min_exp;
+      lshift = (ac_int<WE,false>(max_shift)).to_int();
+      expt = (min_exp + reserved_min_exp).to_int();
       fully_normalized = false;
     } else {
       expt -= lshift;
@@ -2007,7 +2108,26 @@ __AC_INT_UTILITY_BASE
     Base::shift_l(lshift, r);
     Base::operator=(r);
     bit_adjust();
+    
     return fully_normalized;
+  }
+
+  template <class T_stream>
+  void write_to_fs_private(T_stream& fs) const {
+    #ifdef AC_VALID_FSTREAM
+    AC_ASSERT(fs.good(), "File stream is not good.");
+    #endif
+
+    fs.write(reinterpret_cast<const char*>(&Base::v[0]), sizeof(Base::v));
+  }
+
+  template <class T_stream>
+  void read_from_fs_private(T_stream& fs) {
+    #ifdef AC_VALID_FSTREAM
+    AC_ASSERT(fs.good(), "File stream is not good.");
+    #endif
+
+    fs.read(reinterpret_cast<char*>(&Base::v[0]), sizeof(Base::v));
   }
 
 public:
@@ -2078,6 +2198,11 @@ public:
     };
   };
 
+  #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+  template <int W2, bool S2>
+  friend bool is_ppo2_ac_int(const ac_int<W2, S2> &input);
+  #endif
+
   template<int W2, bool S2> friend class ac_int;
   template<int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2> friend class ac_fixed;
   ac_int() {
@@ -2088,9 +2213,43 @@ public:
   template<int W2, bool S2>
   inline ac_int (const ac_int<W2,S2> &op) {
     Base::operator =(op);
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    bit_adjust_vra(op, is_ppo2_ac_int(op));
+    #else
     bit_adjust();
+    #endif
   }
 
+  // Construct ac_int with file streams.
+  explicit inline ac_int(std::ifstream &ifs) {
+    read_from_fs_private(ifs);
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    this_update();
+    #endif
+  }
+
+  explicit inline ac_int(std::fstream &fs) {
+    read_from_fs_private(fs);
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    this_update();
+    #endif
+  }
+
+  #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE  
+  inline ac_int( bool b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( char b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( signed char b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( unsigned char b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( signed short b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( unsigned short b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( signed int b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( unsigned int b ) : ConvBase(b) { bit_adjust_vra(b); }
+  inline ac_int( signed long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
+  inline ac_int( unsigned long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
+  inline ac_int( Slong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
+  inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
+  inline ac_int( double d ) : ConvBase(d) { bit_adjust_vra(d); }
+  #else
   inline ac_int( bool b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( char b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( signed char b ) : ConvBase(b) { bit_adjust(); }
@@ -2104,7 +2263,7 @@ public:
   inline ac_int( Slong b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( double d ) : ConvBase(d) { bit_adjust(); }
-
+  #endif
 
 #if (defined(_MSC_VER) && !defined(__EDG__))
 #pragma warning( push )
@@ -2122,7 +2281,11 @@ public:
   inline ac_int &set_val() {
     const unsigned int all_ones = (unsigned) ~0;
     if(V == AC_VAL_DC) {
+      #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+      ac_int r(AC_VRA_STACK_NOT_TRACED);
+      #else
       ac_int r;
+      #endif
       Base::operator =(r);
       bit_adjust();
     }
@@ -2139,6 +2302,14 @@ public:
       const unsigned int rem = (32-W - !S )&31;
       Base::v[N-1] = (all_ones >> 1) >> rem;
     }
+    
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    if (V != AC_VAL_DC) { // Don't cares should not be tracked by VRA.
+      // This assignment is added to facilitate VRA tracking. It is redundant otherwise.
+      *this = *this;
+    }
+    #endif
+    
     return *this;
   }
 #if (defined(_MSC_VER) && !defined(__EDG__))
@@ -2199,7 +2370,14 @@ public:
   inline static std::string type_name() {
     const char *tf[] = {",false>", ",true>"};
     std::string r = "ac_int<";
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Avoid converting W to ac_int value to prevent infinite recursion from happening
+    // while constructing ac_int_numeric_base. std::to_string is only available since C++11
+    // but that's okay because ac_int VRA requires C++11 or later anyway.
+    r += std::to_string(W);
+    #else
     r += ac_int<32,true>(W).to_string(AC_DEC);
+    #endif
     r += tf[S];
     return r;
   }
@@ -2207,20 +2385,41 @@ public:
   // Arithmetic : Binary ----------------------------------------------------
   template<int W2, bool S2>
   typename rt<W2,S2>::mult operator *( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::mult r(AC_VRA_STACK_NOT_TRACED);
+    Base::mult(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::mult r;
     Base::mult(op2, r);
+    #endif
     return r;
   }
   template<int W2, bool S2>
   typename rt<W2,S2>::plus operator +( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::plus r(AC_VRA_STACK_NOT_TRACED);
+    Base::add(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::plus r;
     Base::add(op2, r);
+    #endif
     return r;
   }
   template<int W2, bool S2>
   typename rt<W2,S2>::minus operator -( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::minus r(AC_VRA_STACK_NOT_TRACED);
+    Base::sub(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::minus r;
     Base::sub(op2, r);
+    #endif
     return r;
   }
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
@@ -2230,18 +2429,36 @@ public:
 #endif
   template<int W2, bool S2>
   typename rt<W2,S2>::div operator /( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::div r(AC_VRA_STACK_NOT_TRACED);
+    enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
+          num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = rt<W2,S2>::div::N };
+    Base::template div<num_s, N2, den_s, Nr>(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::div r;
     enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
           num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = rt<W2,S2>::div::N };
     Base::template div<num_s, N2, den_s, Nr>(op2, r);
+    #endif
     return r;
   }
   template<int W2, bool S2>
   typename rt<W2,S2>::mod operator %( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::mod r(AC_VRA_STACK_NOT_TRACED);
+    enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
+          num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = rt<W2,S2>::mod::N };
+    Base::template rem<num_s, N2, den_s, Nr>(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::mod r;
     enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
           num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = rt<W2,S2>::mod::N };
     Base::template rem<num_s, N2, den_s, Nr>(op2, r);
+    #endif
     return r;
   }
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
@@ -2250,26 +2467,41 @@ public:
   // Arithmetic assign  ------------------------------------------------------
   template<int W2, bool S2>
   ac_int &operator *=( const ac_int<W2,S2> &op2) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator *(op2);
+    #else
     Base r;
     Base::mult(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2, bool S2>
   ac_int &operator +=( const ac_int<W2,S2> &op2) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator +(op2);
+    #else
     Base r;
     Base::add(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2, bool S2>
   ac_int &operator -=( const ac_int<W2,S2> &op2) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator -(op2);
+    #else
     Base r;
     Base::sub(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
@@ -2279,22 +2511,32 @@ public:
 #endif
   template<int W2, bool S2>
   ac_int &operator /=( const ac_int<W2,S2> &op2) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator /(op2);
+    #else
     enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
           num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = N };
     Base r;
     Base::template div<num_s, N2, den_s, Nr>(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2, bool S2>
   ac_int &operator %=( const ac_int<W2,S2> &op2) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator %(op2);
+    #else
     enum {Nminus = ac_int<W+S,S>::N, N2 = ac_int<W2,S2>::N, N2minus = ac_int<W2+S2,S2>::N,
           num_s = S + (Nminus > N), den_s = S2 + (N2minus > N2), Nr = N };
     Base r;
     Base::template rem<num_s, N2, den_s, Nr>(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
 #if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
@@ -2302,26 +2544,58 @@ public:
 #endif
   // Arithmetic prefix increment, decrement ----------------------------------
   ac_int &operator ++() {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Conduct intermediate calculations with temporary ac_int variables instead of using
+    // the base class increment function, so as to facilitate VRA instrumentation.
+    ac_int<1, false> q(AC_VRA_STACK_NOT_TRACED);
+    q.template set_val<AC_VAL_QUANTUM>();
+    operator += (q);
+    #else
     Base::increment();
     bit_adjust();
+    #endif
     return *this;
   }
   ac_int &operator --() {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Conduct intermediate calculations with temporary ac_int variables instead of using
+    // the base class decrement function, so as to facilitate VRA instrumentation.
+    ac_int<1, false> q(AC_VRA_STACK_NOT_TRACED);
+    q.template set_val<AC_VAL_QUANTUM>();
+    operator -= (q);
+    #else
     Base::decrement();
     bit_adjust();
+    #endif
     return *this;
   }
   // Arithmetic postfix increment, decrement ---------------------------------
   const ac_int operator ++(int) {
     ac_int t = *this;
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Conduct intermediate calculations with temporary ac_int variables instead of using
+    // the base class increment function, so as to facilitate VRA instrumentation.
+    ac_int<1, false> q(AC_VRA_STACK_NOT_TRACED);
+    q.template set_val<AC_VAL_QUANTUM>();
+    operator += (q);
+    #else
     Base::increment();
     bit_adjust();
+    #endif
     return t;
   }
   const ac_int operator --(int) {
     ac_int t = *this;
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Conduct intermediate calculations with temporary ac_int variables instead of using
+    // the base class decrement function, so as to facilitate VRA instrumentation.
+    ac_int<1, false> q(AC_VRA_STACK_NOT_TRACED);
+    q.template set_val<AC_VAL_QUANTUM>();
+    operator -= (q);
+    #else
     Base::decrement();
     bit_adjust();
+    #endif
     return t;
   }
   // Arithmetic Unary --------------------------------------------------------
@@ -2329,9 +2603,17 @@ public:
     return *this;
   }
   typename rt_unary::neg operator -() const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt_unary::neg r(AC_VRA_STACK_NOT_TRACED);
+    Base::neg(r);
+    r.bit_adjust();
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt_unary::neg r;
     Base::neg(r);
     r.bit_adjust();
+    #endif
     return r;
   }
   // ! ------------------------------------------------------------------------
@@ -2341,88 +2623,167 @@ public:
 
   // Bitwise (arithmetic) unary: complement  -----------------------------
   ac_int<W+!S, true> operator ~() const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<W+!S, true> r(AC_VRA_STACK_NOT_TRACED);
+    Base::bitwise_complement(r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     ac_int<W+!S, true> r;
     Base::bitwise_complement(r);
+    #endif
     return r;
   }
   // Bitwise (non-arithmetic) bit_complement  -----------------------------
   ac_int<W, false> bit_complement() const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<W, false> r(AC_VRA_STACK_NOT_TRACED);
+    Base::bitwise_complement(r);
+    r.bit_adjust();
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     ac_int<W, false> r;
     Base::bitwise_complement(r);
     r.bit_adjust();
+    #endif
     return r;
   }
   // Bitwise (arithmetic): and, or, xor ----------------------------------
   template<int W2, bool S2>
   typename rt<W2,S2>::logic operator & ( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::logic r(AC_VRA_STACK_NOT_TRACED);
+    Base::bitwise_and(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::logic r;
     Base::bitwise_and(op2, r);
+    #endif
     return r;
   }
   template<int W2, bool S2>
   typename rt<W2,S2>::logic operator | ( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::logic r(AC_VRA_STACK_NOT_TRACED);
+    Base::bitwise_or(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::logic r;
     Base::bitwise_or(op2, r);
+    #endif
     return r;
   }
   template<int W2, bool S2>
   typename rt<W2,S2>::logic operator ^ ( const ac_int<W2,S2> &op2) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    typename rt<W2,S2>::logic r(AC_VRA_STACK_NOT_TRACED);
+    Base::bitwise_xor(op2, r);
+    // Extra update call makes sure VRA tracks the returned value regardless of what the target type is.
+    r.this_update();
+    #else
     typename rt<W2,S2>::logic r;
     Base::bitwise_xor(op2, r);
+    #endif
     return r;
   }
   // Bitwise assign (not arithmetic): and, or, xor ----------------------------
   template<int W2, bool S2>
   ac_int &operator &= ( const ac_int<W2,S2> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator &(op2);
+    #else
     Base r;
     Base::bitwise_and(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2, bool S2>
   ac_int &operator |= ( const ac_int<W2,S2> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator |(op2);
+    #else
     Base r;
     Base::bitwise_or(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2, bool S2>
   ac_int &operator ^= ( const ac_int<W2,S2> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator ^(op2);
+    #else
     Base r;
     Base::bitwise_xor(op2, r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   // Shift (result constrained by left operand) -------------------------------
   template<int W2>
   ac_int operator << ( const ac_int<W2,true> &op2 ) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int r;
+    #endif
     Base::shift_l2(op2.to_int(), r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
   template<int W2>
   ac_int operator << ( const ac_int<W2,false> &op2 ) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int r;
+    #endif
     Base::shift_l(op2.to_uint(), r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
   template<int W2>
   ac_int operator >> ( const ac_int<W2,true> &op2 ) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int r;
+    #endif
     Base::shift_r2(op2.to_int(), r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
   template<int W2>
   ac_int operator >> ( const ac_int<W2,false> &op2 ) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int r;
+    #endif
     Base::shift_r(op2.to_uint(), r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
   // Shift assign ------------------------------------------------------------
@@ -2487,28 +2848,49 @@ public:
   // Bit and Slice Select -----------------------------------------------------
   template<int WS, int WX, bool SX>
   inline const ac_int<WS,S> slc(const ac_int<WX,SX> &index) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<WS,S> r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int<WS,S> r;
+    #endif
     AC_ASSERT(index.to_int() >= 0, "Attempting to read slc with negative indeces");
     unsigned uindex = ac_int<WX-SX, false>(index).to_uint();
     Base::shift_r(uindex, r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
 
   template<int WS>
   inline const ac_int<WS,S> slc(signed index) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<WS,S> r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int<WS,S> r;
+    #endif
     AC_ASSERT(index >= 0, "Attempting to read slc with negative indeces");
     unsigned uindex = index & ((unsigned)~0 >> 1);
     Base::shift_r(uindex, r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
   template<int WS>
   inline const ac_int<WS,S> slc(unsigned uindex) const {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<WS,S> r(AC_VRA_STACK_NOT_TRACED);
+    #else
     ac_int<WS,S> r;
+    #endif
     Base::shift_r(uindex, r);
     r.bit_adjust();
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    r.this_update();
+    #endif
     return r;
   }
 
@@ -2522,6 +2904,7 @@ public:
       Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     }
     bit_adjust();   // in case sign bit was assigned
+    
     return *this;
   }
   template<int W2, bool S2>
@@ -2534,6 +2917,7 @@ public:
       Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     }
     bit_adjust();   // in case sign bit was assigned
+    
     return *this;
   }
   template<int W2, bool S2>
@@ -2544,6 +2928,7 @@ public:
     else
       Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
     bit_adjust();   // in case sign bit was assigned
+    
     return *this;
   }
 
@@ -2632,7 +3017,11 @@ public:
     if(W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);
+      #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+      intW_t r(AC_VRA_STACK_NOT_TRACED);
+      #else
       intW_t r;
+      #endif
       r0.reverse(r);
       r.template const_shift_r<intW_t::N,(32-W)&31>(r);
       *this=ac_int<W,false>(r);
@@ -2645,7 +3034,11 @@ public:
     if(W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);
+      #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+      intW_t r(AC_VRA_STACK_NOT_TRACED);
+      #else
       intW_t r;
+      #endif
       r0.reverse(r);
       r.template const_shift_r<intW_t::N,(32-W)&31>(r);
       return ac_int<W,false>(r);
@@ -2666,13 +3059,56 @@ public:
   // returns false if number is denormal
   template<int WE, bool SE>
   bool normalize(ac_int<WE,SE> &exp) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int m = *this;
+    bool r = m.normalize_private(exp);
+    // Assignment from temporary ac_int variable to final result facilitates VRA tracking.
+    *this = m;
+    return r;
+    #else
     return normalize_private(exp);
+    #endif
   }
   // returns false if number is denormal, minimum exponent is reserved (usually for encoding special values/errors)
   template<int WE, bool SE>
   bool normalize_RME(ac_int<WE,SE> &exp) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int m = *this;
+    bool r = m.normalize_private(exp, true);
+    // Assignment from temporary ac_int variable to final result facilitates VRA tracking.
+    *this = m;
+    return r;
+    #else
     return normalize_private(exp, true);
+    #endif
   }
+
+  inline void write_to_fs(std::ofstream &ofs) const {
+    write_to_fs_private(ofs);
+  }
+
+  inline void write_to_fs(std::fstream &fs) const {
+    write_to_fs_private(fs);
+  }
+
+  inline ac_int & read_from_fs(std::ifstream &ifs) {
+    read_from_fs_private(ifs);
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // This assignment is added to facilitate VRA tracking. It is redundant otherwise.
+    *this = *this;
+    #endif
+    return *this;
+  }
+
+  inline ac_int & read_from_fs(std::fstream &fs) {
+    read_from_fs_private(fs);
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // This assignment is added to facilitate VRA tracking. It is redundant otherwise.
+    *this = *this;
+    #endif
+    return *this;
+  }
+
   bool and_reduce() const {
     return ac_private::iv_equal_ones_to<W,N>(Base::v);
   }
@@ -2707,7 +3143,12 @@ public:
   inline void bit_fill_hex(const char *str) {
     // Zero Pads if str is too short, throws ms bits away if str is too long
     // Asserts if anything other than 0-9a-fA-F is encountered
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<W,S> res(AC_VRA_STACK_NOT_TRACED);
+    res = 0;
+    #else
     ac_int<W,S> res = 0;
+    #endif
     while(*str) {
       char c = *str;
       int h = 0;
@@ -2734,10 +3175,15 @@ public:
     //   if W > N*32, missing most significant bits are zeroed
     //   if W < N*32, additional bits in ivec are ignored (no overflow checking)
     // Example:
-    //   ac_int<80,false> x;    int vec[] = { 0xffffa987, 0x6543210f, 0xedcba987 };
+    //   ac_int<80,false> x;    int vec[] = { 0x5fffa987, 0x6543210f, 0x7dcba987 };
     //   x.bit_fill(vec);   // vec[0] fill bits 79-64
     enum { N0 = (W+31)/32, M = AC_MIN(N0,Na) };
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    ac_int<M*32,false> res(AC_VRA_STACK_NOT_TRACED);
+    res = 0;
+    #else
     ac_int<M*32,false> res = 0;
+    #endif
     for(int i=0; i < M; i++)
       res.set_slc(i*32, ac_int<32>(ivec[bigendian ? M-1-i : i]));
     *this = res;
@@ -2812,7 +3258,10 @@ namespace ac_private {
   };
 }
 
-
+// Specialized constructors for bit_adjust bypass are disabled when using
+// ac_int VRA, which helps to reduce the number of instrumentation hooks
+// needed and simplifies the coding involved.
+#ifndef __AC_INT_NUMERICAL_ANALYSIS_BASE
 // Specializations for constructors on integers that bypass bit adjusting
 //  and are therefore more efficient
 template<> inline ac_int<1,true>::ac_int( bool b ) { v[0] = b ? -1 : 0; }
@@ -2861,6 +3310,7 @@ template<> inline ac_int<64,true>::ac_int( Slong b ) { v[0] = (int) b; v[1] = (i
 template<> inline ac_int<64,true>::ac_int( Ulong b ) { v[0] = (int) b; v[1] = (int) (b >> 32);}
 template<> inline ac_int<64,false>::ac_int( Slong b ) { v[0] = (int) b; v[1] = (int) ((Ulong) b >> 32); v[2] = 0; }
 template<> inline ac_int<64,false>::ac_int( Ulong b ) { v[0] = (int) b; v[1] = (int) (b >> 32); v[2] = 0; }
+#endif
 
 // Stream --------------------------------------------------------------------
 
@@ -3199,7 +3649,7 @@ SPECIAL_VAL_FOR_INTS(Ulong, 64, false)
 
 namespace ac {
 // PUBLIC FUNCTIONS
-// function to initialize (or uninitialize) arrays
+  // function to initialize (or uninitialize) arrays with fixed value.
   template<ac_special_val V, int W, bool S>
   inline bool init_array(ac_int<W,S> *a, int n) {
     ac_int<W,S> t;
@@ -3221,6 +3671,34 @@ namespace ac {
   INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long)
   INIT_ARRAY_SPECIAL_VAL_FOR_INTS(signed long long)
   INIT_ARRAY_SPECIAL_VAL_FOR_INTS(unsigned long long)
+
+  // functions to initialize array from filestream.
+
+  template<int W, bool S>
+  inline bool init_array(ac_int<W, S> *a, int n, std::ifstream &ifs) {
+    for (int i = 0; i < n; i++) { a[i].read_from_fs(ifs); }
+    return true;
+  }
+
+  template<int W, bool S>
+  inline bool init_array(ac_int<W, S> *a, int n, std::fstream &fs) {
+    for (int i = 0; i < n; i++) { a[i].read_from_fs(fs); }
+    return true;
+  }
+
+  // functions to dump array to filestream.
+
+  template<int W, bool S>
+  inline bool dump_array(const ac_int<W, S> *a, int n, std::ofstream &ofs) {
+    for (int i = 0; i < n; i++) { a[i].write_to_fs(ofs); }
+    return true;
+  }
+
+  template<int W, bool S>
+  inline bool dump_array(const ac_int<W, S> *a, int n, std::fstream &fs) {
+    for (int i = 0; i < n; i++) { a[i].write_to_fs(fs); }
+    return true;
+  }
 }
 
 #if (defined(_MSC_VER) && !defined(__EDG__))
@@ -3235,6 +3713,12 @@ namespace ac {
 
 #ifdef __AC_NAMESPACE
 }
+#endif
+
+#ifdef AC_INT_VRA
+// Note that the value range analysis feature of AC Int is only available with a full
+// Catapult installation.
+#include "ovf_ac_int_fns.h"
 #endif
 
 #endif // __AC_INT_H

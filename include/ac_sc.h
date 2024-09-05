@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2004-2019, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -371,8 +371,12 @@ class vcd_trace;
 #if (SYSTEMC_VERSION >= 20140417) && !defined(SC_TRACE_FILE_BASE_H_INCLUDED_)
 class sc_trace_file_base
   : public sc_trace_file
+#if (SYSTEMC_VERSION >= 20240329)
+  , private sc_stage_callback_if // to be used as callback target
+#else
 #if (SC_TRACING_PHASE_CALLBACKS_ == 1)
   , private sc_object // to be used as callback target
+#endif
 #endif
 {
 public:

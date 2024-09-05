@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -84,6 +84,8 @@ struct ac_channel_exception {
   enum { code_begin = 1024 };
   enum code {
     read_from_empty_channel                                     = code_begin,
+    peek_from_empty_channel,
+    no_peek_nb_peek_defined_for_channel_type,
     fifo_not_empty_when_reset,
     no_operator_sb_defined_for_channel_type,
     no_insert_defined_for_channel_type,
@@ -94,6 +96,8 @@ struct ac_channel_exception {
   static inline const char *msg(const code &code_) {
       static const char *const s[] = {
           "Read from empty channel",
+          "Peek from empty channel",
+          "No peek()and nb_peek() defined for channel type",
           "fifo not empty when reset",
           "No operator[] defined for channel type",
           "No insert defined for channel type",
@@ -122,6 +126,10 @@ public:
   T read() { return chan.read(); }
   void read(T& t) { t = read(); }
   bool nb_read(T& t) { return chan.nb_read(t); }
+
+  T peek() { return chan.peek(); }
+  void peek(T& t) { t = peek(); }
+  bool nb_peek(T& t) { return chan.nb_peek(t); }
 
   void write(const T& t) { chan.write(t); }
   bool nb_write(T& t) {
@@ -201,6 +209,8 @@ public:
       virtual fifo_type get_fifo_type() const = 0;
       virtual T read() = 0;
       virtual bool nb_read(T& t) = 0;
+      virtual T peek() = 0;
+      virtual bool nb_peek(T& t) = 0;
       virtual void write(const T& t) = 0;
       virtual bool nb_write(T& t) = 0;
       virtual bool empty() = 0;
@@ -220,10 +230,10 @@ public:
 
       fifo_type get_fifo_type() const { return ftype(); }
 
-      T read() {
+      template <bool isRead> T readOrPeek() {
         {
-          // If you hit this assert you attempted a read on an empty channel. Perhaps
-          // you need to guard the execution of the read with a call to the available()
+          // If you hit this assert you attempted a read or peek on an empty channel. Perhaps
+          // you need to guard the execution of the read/peek with a call to the available()
           // function:
           //    if (myInputChan.available(2)) {
           //      // it is safe to read two values
@@ -232,23 +242,33 @@ public:
           //    }
 #if !defined(CCS_SCVERIFY) && !defined(__SYNTHESIS__) && defined(AC_CHANNEL_READ_FAIL_TB)
           if (empty()) {
-            std::cerr << std::endl << "Error: Empty channel read attempt from here:" << std::endl;
+            std::cerr << std::endl << "Error: Empty channel " << (isRead ? "read" : "peek" ) << " attempt from here:" << std::endl;
             std::stringstream key;
-            // call stack will be #1 ac_channel<T>::fifo::fifo_ac_channel::read()
-            //                    #2 ac_channel<T>::fifo::fifo::read()
-            //                    #3 ac_channel<T>::read()
-            //                    #4 < user code >
-            ac_debug::build_stack_key(key,4); // move up four frames to start at user code
+            // call stack will be #1 ac_channel<T>::fifo::fifo_ac_channel::readOrPeek()
+            //                    #2 ac_channel<T>::fifo::fifo_ac_channel::read()
+            //                    #3 ac_channel<T>::fifo::fifo::read()
+            //                    #4 ac_channel<T>::read()
+            //                    #5 < user code >
+            ac_debug::build_stack_key(key,5); // move up five frames to start at user code
             std::cerr << ac_debug::format_stack_trace(key.str()) << std::endl;
           }
 #endif
-          AC_CHANNEL_ASSERT(!empty(), ac_channel_exception::read_from_empty_channel);
+          AC_CHANNEL_ASSERT(!empty(), (isRead ? ac_channel_exception::read_from_empty_channel : ac_channel_exception::peek_from_empty_channel));
         }
         T t = ch.front();
-        ch.pop_front();
+        if (isRead) 
+          ch.pop_front();
         return t;
       }
+      T read() {
+            return readOrPeek<true>();
+        }
       bool nb_read(T& t) { return empty() ? false : (t = read(), true); }
+
+      T peek() {
+            return readOrPeek<false>();
+        }
+      bool nb_peek(T& t) { return empty() ? false : (t = peek(), true); }
 
       void write(const T& t) { ch.push_back(t); }
       bool nb_write(T& t) { return !num_free() ? false : (write(t), true); }
@@ -278,6 +298,15 @@ public:
 
       T read() { return fifo_in->read(); }
       bool nb_read(T& t) { return empty() ? false : (t = read(), true); }
+
+      T peek() { 
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        return 0;
+      }
+      bool nb_peek(T& t) { 
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        return false;
+      }
 
       void write(const T& t) { fifo_out->write(t); }
       bool nb_write(T& t) { return !num_free() ? false : (write(t), true); }
@@ -313,6 +342,16 @@ private:
 
       T read() { return fifo_in->Pop(); }
       bool nb_read(T& t) { return fifo_in->PopNB(t); }
+
+      T peek() { 
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        T undefValue;
+        return undefValue;
+      }
+      bool nb_peek(T& t) {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        return false;
+      }
 
       void write(const T& t) { fifo_out->Push(t); }
       bool nb_write(T& t) { return fifo_out->PushNB(t); }
@@ -354,6 +393,15 @@ private:
 
       bool read() { sync_in->sync_in(); return true; }
       bool nb_read(T& t) { t=true; return(sync_in->nb_sync_in()); }
+
+      bool peek() {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        return false;
+      }
+      bool nb_peek(T& t) {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_peek_nb_peek_defined_for_channel_type);
+        return false;
+      }
 
       void write(const T& t) { sync_out->sync_out(); }
       bool nb_write(T& t) { sync_out->sync_out(); return true; }
@@ -417,6 +465,9 @@ private:
 
     inline T read() { return f->read(); }
     inline bool nb_read(T& t) { return f->nb_read(t); }
+
+    inline T peek() { return f->peek(); }
+    inline bool nb_peek(T& t) { return f->nb_peek(t); }
 
     inline void write(const T& t) { f->write(t); }
     inline bool nb_write(T& t) { return f->nb_write(t); }

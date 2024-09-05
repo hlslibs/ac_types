@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2013-2021, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -130,9 +130,8 @@ public:
 private:
   inline bool is_neg() const { return m < 0; }   // is_neg would be more efficient
 
-  enum {NZ_E = !!E, MIN_EXP = -(NZ_E << (E-NZ_E)), MAX_EXP = (1 << (E-NZ_E))-1};
-
 public:
+  enum {NZ_E = !!E, MIN_EXP = -(NZ_E << (E-NZ_E)), MAX_EXP = (1 << (E-NZ_E))-1};
   static const int width = W;
   static const int i_width = I;
   static const int e_width = E;
@@ -325,7 +324,7 @@ private:
     bool r_zero;
     if(force_normalize) {
       bool all_sign;
-      ls = m2.leading_sign(all_sign);
+      ls = m2.leading_sign(all_sign).to_int();
       r_zero = all_sign & !m2[0];
     } else if(msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
       // msb_min_power_dif < 0: src exponent less negative than trg exp represents
@@ -340,13 +339,13 @@ private:
       const int extra_bits = AC_MAX(W2-W,0);
       const int norm_w = AC_MAX(msb_range_dif_norm_w, extra_bits) + 1;
       bool all_sign;
-      ls = m2.template slc<norm_w>(W2-norm_w).leading_sign(all_sign);
+      ls = m2.template slc<norm_w>(W2-norm_w).leading_sign(all_sign).to_int();
       r_zero = all_sign & !m2[W2-1] & !(m2 << norm_w);
     } else {
       r_zero = !m2;
     }
     int actual_max_shift_left = (1 << (E-1)) + e_t;
-    if(may_shift_right && actual_max_shift_left < 0) {
+    if(may_shift_right & (actual_max_shift_left < 0)) {
       const int shift_r_w = ac::nbits<max_right_shift>::val;
       ac_int<shift_r_w,false> shift_r = -actual_max_shift_left;
       if((1 << (E-1)) + min_exp2 + I2-I < 0 && need_rem_bits) {
@@ -355,7 +354,7 @@ private:
         sticky_bit |= !!shifted_out_bits;
       }
       op2 >>= shift_r;
-      e_t += shift_r;
+      e_t += shift_r.to_int();
     } else {
       bool shift_exponent_limited = ls >= actual_max_shift_left;
       int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
@@ -383,6 +382,15 @@ private:
     }
   }
 
+  ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, ac_int<E,true> isZero, bool normalize=true) {
+    m = m2;
+    e = e2;
+    if(normalize)
+      this->normalize();
+    else
+      e &= ~isZero;
+  }
+
 public:
   template<AC_FL_T(2)>
   ac_float(const AC_FL(2) &op, bool force_normalize=false, bool assert_on_overflow=false, bool assert_on_rounding=false) {
@@ -395,7 +403,7 @@ public:
         this->normalize();
       else if(I > I2) {
         const int ls = I-I2;
-        int e_t = e;
+        int e_t = e.to_int();
         int actual_max_shift_left = (1 << (E-1)) + e_t;
         bool shift_exponent_limited = ls >= actual_max_shift_left;
         int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
@@ -406,7 +414,7 @@ public:
     } else {
       const int min_exp2 = fl2_t::MIN_EXP;
       const int max_exp2 = fl2_t::MAX_EXP;
-      assign_from<min_exp2,max_exp2>(op.m, op.e, false, force_normalize, assert_on_overflow, assert_on_rounding);
+      assign_from<min_exp2,max_exp2>(op.m, op.e.to_int(), false, force_normalize, assert_on_overflow, assert_on_rounding);
     }
   }
 
@@ -466,21 +474,41 @@ public:
   inline unsigned long to_ulong() const { return (unsigned long) to_ac_int().to_uint64(); }
   inline Slong to_int64() const { return to_ac_int().to_int64(); }
   inline Ulong to_uint64() const { return to_ac_int().to_uint64(); }
-  inline float to_float() const { return ldexpf(m.to_double(), exp()); }
-  inline double to_double() const { return ldexp(m.to_double(), exp()); }
+  inline float to_float() const {
+    float m_float = (float) m.to_double();
+    return ldexpf(m_float, exp().to_int());
+  }
+  inline double to_double() const { return ldexp(m.to_double(), exp().to_int()); }
 
   const ac_fixed<W,I,S> mantissa() const { return m; }
   const ac_int<E,true> exp() const { return e; }
   bool normalize() {
     bool all_sign;
-    int ls = m.leading_sign(all_sign);
+    int ls = m.leading_sign(all_sign).to_int();
     bool m_zero = all_sign & !m[0];
-    const int max_shift_left = (1 << (E-1)) + e;
+    const int max_shift_left = (1 << (E-1)) + e.to_int();
     bool normal = ls <= max_shift_left;
     int shift_l = normal ? ls : max_shift_left;
     m <<= shift_l;
     e = ac_int<1,true>(!m_zero) & (e - shift_l);
     return normal;
+  }
+  
+  bool is_norm() const {
+    #if __cplusplus > 199711L
+    static_assert(W >= 2, "Mantissa must be at least 2 bits wide.");
+    #endif
+    return m[W-1] ^ m[W-2];
+  }
+  
+  bool is_subn() const {
+    #if __cplusplus > 199711L
+    static_assert(E >= 2, "Exponent must be at least 2 bits wide.");
+    #endif
+    bool isnt_normal = !is_norm();
+    bool is_e_min = (e[E-1] && !e.template slc<E-1>(0));
+    bool isnt_zero = !!m;
+    return isnt_normal && is_e_min && isnt_zero;
   }
 
   ac_float( double d, bool assert_on_overflow=false, bool assert_on_rounding=false ) {
@@ -508,7 +536,7 @@ public:
 
     fx_t op1_m = m;
     fx_t op2_m = op2_m_0;
-    int e_dif = exp() - op2.exp() + I - I2;
+    int e_dif = (exp() - op2.exp()).to_int() + I - I2;
     bool op2_m_neg = op2_m[fx_t::width-1];
     fx_t out_bits = op2_m ^ ((op2_m_neg & e_dif < 0) ? ~fx_t(0) : fx_t(0));
     out_bits &= ~(fxu_t(~fxu_t(0)) << e_dif);
@@ -598,14 +626,14 @@ public:
     ac_fixed<mt_t::width, I+1, mt_t::sign> op1_m_0 = m;
     mt_t op1_m = 0;
     op1_m.set_slc(0, op1_m_0.template slc<mt_t::width>(0));
-    int op1_e = exp() + I-IT;
+    int op1_e = exp().to_int() + I-IT;
 
     ac_fixed<mt_t::width, I2+1, mt_t::sign> op2_m_0 = op2.m;
     mt_t op2_m = 0;
     op2_m.set_slc(0, op2_m_0.template slc<mt_t::width>(0));
     if(sub)
       op2_m = -op2_m;
-    int op2_e = op2.exp() + I2-IT;
+    int op2_e = op2.exp().to_int() + I2-IT;
 
     bool op1_zero = operator !();
     bool op2_zero = !op2;
@@ -670,7 +698,8 @@ public:
   template<AC_FL_T(2)>
   typename rt< AC_FL_TV0(2) >::mult operator *(const AC_FL(2) &op2) const {
     typedef typename rt< AC_FL_TV0(2) >::mult r_t;
-    r_t r(m*op2.m, exp()+op2.exp(), false);
+    const ac_int<1,false> zero = ((m==0) | (op2.m==0));
+    r_t r(m*op2.m, exp()+op2.exp(), -zero, false);
     return r;
   }
 

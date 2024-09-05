@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2018-2022, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -91,6 +91,18 @@ Overview: this header defines three classes
 #endif
 #endif
 
+#ifndef AC_STD_FLOAT_IEEE754_ROUND_OVERRIDE
+#define AC_STD_FLOAT_IEEE754_ROUND AC_RND_CONV
+#else
+#define AC_STD_FLOAT_IEEE754_ROUND AC_STD_FLOAT_IEEE754_ROUND_OVERRIDE
+#endif
+
+#ifndef AC_STD_FLOAT_BFLOAT16_ROUND_OVERRIDE
+#define AC_STD_FLOAT_BFLOAT16_ROUND AC_TRN_ZERO
+#else
+#define AC_STD_FLOAT_BFLOAT16_ROUND AC_STD_FLOAT_BFLOAT16_ROUND_OVERRIDE
+#endif
+
 #ifdef __AC_NAMESPACE
 namespace __AC_NAMESPACE {
 #endif
@@ -111,7 +123,7 @@ namespace ac_private {
   template<ac_q_mode Q>
   void check_supported() {
     // only symmetrical roundings supported
-    const bool supported = Q==AC_RND_CONV || Q==AC_TRN_ZERO || Q==AC_RND_INF || Q == AC_RND_CONV_ODD;
+    const bool supported = (Q==AC_RND_CONV) | (Q==AC_TRN_ZERO) | (Q==AC_RND_INF) | (Q == AC_RND_CONV_ODD);
 #if __cplusplus > 199711L
     static_assert(supported, "Only symmetrical roundings/truncations supported");
 #else
@@ -160,7 +172,7 @@ namespace ac_private {
       return ls;
     }
   };
-#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#if (defined(__GNUC__) & ( (__GNUC__ == 4) & (__GNUC_MINOR__ >= 6) | (__GNUC__ > 4) ) & !defined(__EDG__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wbool-compare"
 #endif
@@ -171,7 +183,7 @@ namespace ac_private {
     return LeadingSignConstrained<pos_width,constrained>::template val<MaxLShift>(x, all_sign);
   }
 }
-#if (defined(__GNUC__) && ( __GNUC__ == 4 && __GNUC_MINOR__ >= 6 || __GNUC__ > 4 ) && !defined(__EDG__))
+#if (defined(__GNUC__) & ( (__GNUC__ == 4) & (__GNUC_MINOR__ >= 6) | (__GNUC__ > 4) ) & !defined(__EDG__))
 #pragma GCC diagnostic pop
 #endif
 
@@ -222,23 +234,23 @@ namespace ac {
     ac_int<ZW,false> z = x;
     z <<= W_odd;
     // masks used only to hint synthesis on precision
-    ac_int<WR+2,false> mask_d = 0;
+    ac_int<WR+2,true> mask_d = -1;
     ac_int<WR+2,false> d = 0;
     ac_int<WR,false> r = 0;
     unsigned int z_shift = ZW-2;
     for(int i = WR-1; i >= 0; i--) {
       r <<= 1;
-      mask_d = (mask_d << 2) | 0x3;
-      d = (mask_d & (d << 2)) | ((z >> z_shift) & 0x3 );
+      mask_d <<= 2;
+      d = (~mask_d & (d << 2)) | ((z >> z_shift) & 0x3 );
       ac_int<WR+2,false> t = d - (( ((ac_int<WR+1,false>)r) << 1) | 0x1);
       if( !t[WR+1] ) {  // since t is unsigned, look at MSB
         r |= 0x1;
-        d = mask_d & t;
+        d = ~mask_d & t;
       }
       z <<= 2;
     }
 
-    bool rem = (d != 0) || ((z >> 2*W) != 0);
+    bool rem = (d != 0) | ((z >> 2*W) != 0);
     sqrt = r;
     return rem;
   }
@@ -424,6 +436,7 @@ private:
   typedef ac_int<mu_bits+1,true> m_t;   // mantissa in two's complement representation
 public:
   typedef ac_int<E,true> e_t;
+  typedef ac_int<E,false> eu_t;
   typedef ac_float<width-e_width+1,2,e_width,AC_RND_CONV> ac_float_t;
   static ac_std_float nan() {
     ac_std_float r;
@@ -493,7 +506,7 @@ public:
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   ac_fixed<WFX,IFX,SFX,QFX,OFX> convert_to_ac_fixed(bool map_inf=false) const {
     static const bool need_rnd_bit = QFX != AC_TRN;
-    static const bool need_rem_bits = need_rnd_bit && QFX != AC_RND;
+    static const bool need_rem_bits = need_rnd_bit & (QFX != AC_RND);
     static const bool need_ovf = OFX != AC_WRAP;
     static const int t_width = AC_MAX(mu_bits+1, WFX+!SFX) + need_rnd_bit + need_ovf;
 
@@ -501,7 +514,7 @@ public:
     mu_t f_mu;
     e_t f_e;
     extract(f_mu, f_e, f_sign, f_normal, f_zero, f_inf, f_nan);
-    if(map_inf && f_inf) {
+    if(map_inf & f_inf) {
       ac_fixed<WFX,IFX,SFX,QFX,OFX> rv;
       if(f_sign)
         rv.template set_val<AC_VAL_MIN>();
@@ -509,7 +522,7 @@ public:
         rv.template set_val<AC_VAL_MAX>();
       return rv;
     }
-    AC_ASSERT(!f_inf && !f_nan, "Expects finite float (not Nan or Inf)");
+    AC_ASSERT(!f_inf & !f_nan, "Expects finite float (not Nan or Inf)");
     m_t f_m = f_sign ? m_t(-f_mu) : m_t(f_mu);
     typedef ac_int<t_width,true> t_t;
     typedef ac_int<t_width+need_rem_bits,true> t2_t;
@@ -586,7 +599,7 @@ public:
     int exp = f_e;
     ac_fixed<r_mu_bits+1, mu_bits+1,false,QR> r_rnd;
     if(ER >= E) {
-      if(ER > E && !f_normal) {
+      if((ER > E) & !f_normal) {
         int ls = f_mu.leading_sign();
         int max_shift_left = f_e - r_min_exp + 1;
         bool shift_exponent_limited = ls >= max_shift_left;
@@ -615,9 +628,9 @@ public:
     ac_int<r_mant_bits,false> r_m = r_rnd.template slc<r_mant_bits>(0);
     bool r_normal = r_rnd[r_mant_bits] | rnd_ovf;
     exp += rnd_ovf;
-    bool f_conv_inf = !f_inf && (exp > r_max_exp); // treated differently than f_inf for AC_TRN_ZERO
-    bool exception = f_inf | f_nan | (QR != AC_TRN_ZERO && f_conv_inf);
-    r_e_t r_e = exception ? -1 : (f_zero | !r_normal) ? 0 : (QR==AC_TRN_ZERO && f_conv_inf) ? ~1 : exp + r_exp_bias;
+    bool f_conv_inf = !f_inf & (exp > r_max_exp); // treated differently than f_inf for AC_TRN_ZERO
+    bool exception = f_inf | f_nan | ((QR != AC_TRN_ZERO) & f_conv_inf);
+    r_e_t r_e = exception ? -1 : (f_zero | !r_normal) ? 0 : ((QR==AC_TRN_ZERO) & f_conv_inf) ? ~1 : exp + r_exp_bias;
     if(exception) {
       r_m = 0;
       r_m[r_mant_bits-1] = f_nan;
@@ -661,7 +674,7 @@ public:
   template<ac_q_mode Q, int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX>
   void assign_from(const ac_fixed<WFX,IFX,SFX,QFX,OFX> &fx) {
     ac_private::check_supported<Q>();
-    bool sign = SFX && fx < 0.0;
+    bool sign = SFX & (fx < 0.0);
     ac_int<WFX,SFX> x = fx.template slc<WFX>(0);
     const int max_shift_left = IFX-SFX-1-min_exp;
     typedef ac_int<WFX,false> x_u_t;
@@ -676,9 +689,9 @@ public:
       x_u <<= shift_l;
       exp -= shift_l;
       // after shift of abs value, MSB should be 0 with exception of 1 followed by 0s
-      bool ovf_most_neg = SFX && x_u[WFX-1];
+      bool ovf_most_neg = SFX & x_u[WFX-1];
       bool ovf = ovf_most_neg;
-      if((Q == AC_RND_CONV || Q == AC_RND_INF) && WFX-SFX > mu_bits) {
+      if(((Q == AC_RND_CONV) | (Q == AC_RND_INF)) & (WFX-SFX > mu_bits)) {
         // Check whether rounding would trigger overflow
         mu1_t t = x_u.template slc<mu_bits+1>((WFX-SFX) - mu_bits - 1);
         ovf |= t == mu1_t(-1);
@@ -718,7 +731,7 @@ public:
 
       ac_fixed<mu_bits,mu_bits+2,false,Q> r_rnd = x_bef_rnd;
       m_r = r_rnd.template slc<mant_bits>(0);
-      bool ovf_most_neg = SFX && x_bef_rnd[mu_bits+2+SFX-1];
+      bool ovf_most_neg = SFX & x_bef_rnd[mu_bits+2+SFX-1];
       r_normal = r_rnd[mu_bits-1] | ovf_most_neg;
       r_inf = false;
       exp = r_normal;
@@ -794,7 +807,7 @@ public:
   }
   bool isnormal() const {
     ac_int<E,true> e = d.template slc<E>(mant_bits);
-    return (e || !(ac_int<mant_bits,false>)d)&& e != -1;
+    return (e | !(ac_int<mant_bits,false>)d) & (e != -1);
   }
   bool isnan() const {
     if(isfinite())
@@ -904,24 +917,23 @@ public:
     bool e1_lt_e2 = (e_dif1 < 0);
     bool e1_eq_e2 = (op1_e_b == op2_e_b);
     //unsigned e_dif = e1_lt_e2 ? e_dif2 : e_dif1;
-    unsigned e_dif = op1_e_b < op2_e_b ? op2_e_b - op1_e_b : op1_e_b - op2_e_b;
+    eu_t e_dif = op1_e_b < op2_e_b ? op2_e_b - op1_e_b : op1_e_b - op2_e_b;
 
-    bool do_sub = op1_sign != op2_sign;
 
     // find bigger & smaller operands
     // get rid of implicit bit to have comparison computed faster : case where this bit differ have e1_eq_e2=false so result is not taken into account
     ac_int<mant_bits,false> mant_bits1 = op1_mu;
     ac_int<mant_bits,false> mant_bits2 = op2_mu;
     bool ma1_lt_ma2 = (mant_bits1 < mant_bits2);
-    bool op1_smaller = e1_lt_e2 || (e1_eq_e2 && ma1_lt_ma2);
+    bool op1_smaller = e1_lt_e2 | (e1_eq_e2 & ma1_lt_ma2);
     // align mantissa instead of correcting exp (a mux is faster than an adder)
     if (!op1_normal)
       op1_mu <<= 1;
-    else if (No_SubNormals && op1_zero)
+    else if (No_SubNormals & op1_zero)
       op1_mu = 0;
     if (!op2_normal)
       op2_mu <<= 1;
-    else if (No_SubNormals && op2_zero)
+    else if (No_SubNormals & op2_zero)
       op2_mu = 0;
     mu_t op_bigger = op1_smaller ? op2_mu : op1_mu;
     mu_t op_smaller = op1_smaller ? op1_mu : op2_mu;
@@ -932,23 +944,25 @@ public:
     //unsigned e_dif_sat = (e_dif > mu_bits) ? mu_bits+1 : e_dif;
     e_dif_sat_t e_dif_sat = ac_fixed<ac::nbits<mu_bits+1>::val,ac::nbits<mu_bits+1>::val,false,AC_TRN,AC_SAT>(e_dif).to_ac_int();
 
-    bool r_sign = op1_smaller ? op2_sign : op1_sign;
-    if (e1_eq_e2 && op1_mu == op2_mu)
-      r_sign = op1_sign && op2_sign;
+    bool m1_eq_m2 = (op1_mu == op2_mu);
+    bool r_sign = op1_smaller & op2_sign;
+    r_sign |= !op1_smaller & op1_sign;
+    r_sign = (r_sign & !(e1_eq_e2 & m1_eq_m2)) | (op1_sign & op2_sign);
     bool r_normal = true;
     bool r_inf = false;
+
+    bool do_sub = op1_sign != op2_sign;
 
     // compute add/sub of mantissa
     // we know result will be positive
 
-    ac_int<mant_bits,false> m_r;
     // int value is mu_bits+1 to keep carry-out of adder
     // decimal value is 3 bits : guard / round / sticky
     typedef ac_fixed<mu_bits+1+3,mu_bits+1,false> add_GRS_t;
     add_GRS_t res_mant;
     // perform res_mant = op_smaller / 2^e_dif
     res_mant = op_smaller;
-    ac_int<mu_bits+1+3,false> sticky_bit_mask = -1;
+    ac_int<mu_bits+1+2,false> sticky_bit_mask = -1;
     sticky_bit_mask <<= e_dif_sat;
     sticky_bit_mask = ~sticky_bit_mask;
     sticky_bit_mask >>= 2;
@@ -965,17 +979,14 @@ public:
     bool all_sign;
     ac_int<ac::nbits<mu_bits+1+3>::val,false> ls = res_mant.leading_sign(all_sign);
     bool r_zero = all_sign; // we know res_mant >= 0, so all_sign means equal zero
-    int resexp = exp - ls + 1;
-    // pre-compute exp + 1
-    int exp_plus_1 = exp - ls + 2;
-    if (resexp <= 0) {
+    int resexp = exp - ls;
+    bool incr = 0;
+    if (resexp < 0) {
       ls = exp;
-      exp = 0;
-      exp_plus_1 = 1;
+      exp = -1;
       r_normal = false;
     } else {
       exp = resexp;
-      r_inf = exp == max_exp + exp_bias + 1 || exp > max_exp + exp_bias + 1;// same as exp > max_exp + exp_bias
       r_normal = true;
     }
     res_mant <<= ls;
@@ -985,16 +996,19 @@ public:
     add_rounded_t res_rounded = res_mant;
     if (res_rounded[mu_bits]) { // overflow in rounding
       res_rounded >>= 1;
-      exp = exp_plus_1;
-      r_inf |= exp == max_exp + exp_bias + 1; // other cases already managed
-      r_normal |= resexp == 0;
+      incr = 1;
+      r_normal |= resexp == -1;
     }
+    exp += incr + 1;
+    r_inf = exp > max_exp + exp_bias + 1;
+    bool exp_max = eu_t(exp) == max_exp + exp_bias+1;
     r_zero |= No_SubNormals & !r_normal;
 
+    ac_int<mant_bits,false> m_r;
     m_r = res_rounded.template slc<mant_bits>(0);
 
     // special case when AC_TRN_ZERO : infinity is replaced by max value
-    if (r_inf && QR==AC_TRN_ZERO) {
+    if ((r_inf|exp_max) & (QR==AC_TRN_ZERO)) {
       exp = max_exp + exp_bias; // saturate res
       r_inf = false;
       m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
@@ -1002,12 +1016,14 @@ public:
 
     // compute flags and assign result
     bool r_nan = op1_nan | op2_nan | ((op1_inf & op2_inf) & (op1_sign ^ op2_sign));
-    bool exception = op1_inf | op2_inf | op1_nan | op2_nan | r_inf;
-    ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
-    if(exception | r_zero) {
-      m_r = 0;
-      m_r[mant_bits-1] = r_nan;
-    }
+    r_inf |= op1_inf | op2_inf;
+    bool exception = r_nan | r_inf;
+    ac_int<E,true> e_r = exp;
+    if(exception | r_zero)
+      e_r = ac_int<E,true>(-1)*exception;
+    exception |= (exp_max & (QR!=AC_TRN_ZERO));
+    if(exception | r_zero)
+      m_r = ac_int<mant_bits,false>(-1)*r_nan;
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
     d_r[W-1] = r_sign;
@@ -1038,10 +1054,16 @@ public:
     // extract exponents/mantissas/flags
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
+
+    if (op1_normal)
+      op1_mu[mant_bits] = 1;
+    if (op2_normal)
+      op2_mu[mant_bits] = 1;
+
     bool r_sign = op1_sign ^ op2_sign;
-    bool r_nan = op1_nan | op2_nan | (op1_inf & op2_zero) | (op1_zero & op2_inf);
     bool r_inf = op1_inf | op2_inf; // r_nan takes precedence later on
     bool r_zero = op1_zero | op2_zero;  // r_nan takes precedence later on
+    bool r_nan = op1_nan | op2_nan | (r_inf & r_zero);
 
     // compute raw results exp and p
     int exp = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
@@ -1098,9 +1120,9 @@ public:
       bool p_msb_all_one = (p & mant_bit_mask) == mant_bit_mask;
       bool p_msb_one = p[2*mu_bits-1];
 
-      p_msb_all_one &= p_msb_one || !do_shift_left_1 || guard_bit;
-      sticky_bit |= guard_bit && (p_msb_one || !do_shift_left_1);
-      bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && p_msb_all_one;
+      p_msb_all_one &= p_msb_one | !do_shift_left_1 | guard_bit;
+      sticky_bit |= guard_bit & (p_msb_one | !do_shift_left_1);
+      bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & p_msb_all_one;
       e_incr |= rnd_ovf; // overflow in rounding, we know r_rnd will be "1000...000" so no need for shift because "1000...000"[msb-1:1] == "1000...000"[msb-2:0]
 
       if (p_msb_one)
@@ -1135,16 +1157,16 @@ public:
 
     // compute flags and adjust result
     bool exp_ovf = (exp_plus_1 > max_exp + exp_bias + 1) // easy compute as max_exp+exp_bias+2 is a  power of 2
-                || (e_incr && (exp == max_exp + exp_bias));
+                | (e_incr & (exp == max_exp + exp_bias));
 
-    bool r_normal = !( (!e_incr && exp == 0) || (exp < 0) );
-    r_inf |= (exp_ovf && QR!=AC_TRN_ZERO);
+    bool r_normal = !( (!e_incr & (exp == 0)) | (exp < 0) );
+    r_inf |= (exp_ovf & (QR!=AC_TRN_ZERO));
     bool zero_m = r_zero
-               || (No_SubNormals && !r_normal);
+               | (No_SubNormals & !r_normal);
 
-    if (r_nan || r_inf)
+    if (r_nan | r_inf)
       exp = max_exp + exp_bias + 1;
-    else if (exp_ovf && QR==AC_TRN_ZERO)
+    else if (exp_ovf & (QR==AC_TRN_ZERO))
       exp = max_exp + exp_bias; // saturate res
     else if (zero_m)
       exp = 0;
@@ -1152,11 +1174,11 @@ public:
       exp = exp_plus_1;
 
     ac_int<mant_bits,false> m_r = r_rnd.template slc<mant_bits>(0);
-    if (r_nan || r_inf || zero_m || (exp_ovf && QR!=AC_TRN_ZERO)) {
+    if (r_nan | r_inf | zero_m | (exp_ovf & (QR!=AC_TRN_ZERO))) {
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
-    else if (exp_ovf && QR==AC_TRN_ZERO)
+    else if (exp_ovf & (QR==AC_TRN_ZERO))
       m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
     ac_int<E,true> e_r = exp;
     ac_int<W,true> d_r = m_r;
@@ -1194,6 +1216,18 @@ public:
     ac_int<mu_bits+2,false> q0 = 0;
     bool exact = true;
     bool div_by_zero = op2_zero;
+    ac_int<1,false> q_shift_amount;
+    bool exp_lt_0 = (exp < 0);
+    bool exp_eq_0 = (exp == 0);
+    bool exp_eq_1 = ((exp>>1) == 0);
+    bool exp_neq_0_or_1 = (!exp_lt_0 & !exp_eq_1);
+    if (No_SubNormals) {
+      q_shift_amount = !exp_eq_0;
+      if (exp_lt_0) 
+        r_zero = true;
+      if (exp_eq_0) 
+        exp = 1;
+    } 
 #ifdef __SYNTHESIS__
     div_by_zero = false;
 #endif
@@ -1201,26 +1235,12 @@ public:
       AC_STD_FLOAT_FX_DIV_OVERRIDE(op1_mu, op2_mu, q0, exact);
     }
     ac_int<mu_bits+3,false> q = q0;
-    q <<= 1;
     int shift_r = min_exp + exp_bias - exp;
     bool sticky_bit = !exact;
-    bool shift_l = false;
-    if (No_SubNormals) {
-      if (exp < 0) {
-        r_zero = true;
-      } else if ((exp>>1) == 0) { // exp==0 || exp==1
-        if ((exp&1) == 0) { // exp==0
-          q >>= 1;
-          exp = 1;
-        }
-        // else exp==1 do not change any data
-      } else {// exp > 1
-        shift_l = !q[mu_bits+2];
-        if (shift_l)
-          q <<= 1;
-          // if shift_l then exp will also be decremented
-      }
-    } else {//!No_SubNormals
+    bool shift_l = !q[mu_bits+1]; 
+    if (!No_SubNormals) {
+      q <<= 1;
+      q_shift_amount = 0;
       if (shift_r >= 0) {
         typedef ac_int<mu_bits+3,false> t_t;
         t_t shifted_out_bits = q;
@@ -1229,11 +1249,10 @@ public:
         q >>= shift_r;
         exp += shift_r;
       } else {
-        shift_l = !q[mu_bits+2];
-        if (shift_l)
-          q <<= 1;
+        q_shift_amount = shift_l;
       }
     }
+    q <<= (q_shift_amount + (No_SubNormals & (exp_neq_0_or_1 & shift_l)));
     q[0] = q[0] | sticky_bit;
     ac_fixed<mu_bits+1,mu_bits+4,false,QR> r_rnd = q;
     bool rnd_ovf = r_rnd[mu_bits];
@@ -1243,8 +1262,8 @@ public:
     exp += rnd_ovf;
     exp -= shift_l;
     bool r_inf0 = op1_inf | op2_zero;  // this is not affected by rounding
-    bool r_inf = (!r_zero & ((exp > max_exp + exp_bias + 1) || (exp == max_exp + exp_bias + 1))) | r_inf0;
-    if(QR==AC_TRN_ZERO && !r_inf0) {
+    bool r_inf = ((!r_zero) & ((exp > max_exp + exp_bias + 1) | (exp == max_exp + exp_bias + 1))) | r_inf0;
+    if((QR==AC_TRN_ZERO) & !r_inf0) {
       exp = r_inf ? max_exp + exp_bias : exp;
       m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
       r_inf = false;
@@ -1333,7 +1352,7 @@ public:
 
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.template slc<mu_bits+1>(mu_bits+2);
-    bool rnd_ovf = (QR == AC_RND_CONV || QR == AC_RND_INF) && !add_r[2*mu_bits+3] && t == t_h(-1);
+    bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & !add_r[2*mu_bits+3] & t == t_h(-1);
     bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : (r_neg ^ toggle_r_sign) & !add_exact_zero;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
     bool r_zero = !rnd_ovf & !r_rnd_i;
@@ -1448,16 +1467,16 @@ public:
 #endif
   }
   ac_std_float operator +(const ac_std_float &op2) const {
-    return add<AC_RND_CONV,false>(op2);
+    return add<AC_STD_FLOAT_IEEE754_ROUND,false>(op2);
   }
   ac_std_float operator -(const ac_std_float &op2) const {
-    return sub<AC_RND_CONV,false>(op2);
+    return sub<AC_STD_FLOAT_IEEE754_ROUND,false>(op2);
   }
   ac_std_float operator *(const ac_std_float &op2) const {
-    return mult<AC_RND_CONV,false>(op2);
+    return mult<AC_STD_FLOAT_IEEE754_ROUND,false>(op2);
   }
   ac_std_float operator /(const ac_std_float &op2) const {
-    return div<AC_RND_CONV,false>(op2);
+    return div<AC_STD_FLOAT_IEEE754_ROUND,false>(op2);
   }
   ac_std_float &operator +=(const ac_std_float &op2) {
     *this = operator +(op2);
@@ -1476,7 +1495,7 @@ public:
     return *this;
   }
   bool operator ==(const ac_std_float &op2) const {
-    return ((d == op2.d) && !isnan()) || (operator !() && op2.operator !());
+    return ((d == op2.d) & !isnan()) | (operator !() & op2.operator !());
   }
   bool operator !=(const ac_std_float &op2) const {
     return !operator ==(op2);
@@ -1487,24 +1506,24 @@ public:
   bool neg() const { return d[W-1]; }
   bool operator <(const ac_std_float &op2) const {
     return
-      operator !=(op2) && ( (neg() && !op2.neg()) || (!(neg() ^ op2.neg()) && neg() ^ magnitude_lt(op2)) )
-      && !isnan() && !op2.isnan();
+      (operator !=(op2)) & ( (neg() & !op2.neg()) | ((!(neg() ^ op2.neg())) & (neg() ^ magnitude_lt(op2))) )
+      & !isnan() & !op2.isnan();
   }
   bool operator >=(const ac_std_float &op2) const {
     return
-      (operator ==(op2) || (!neg() && op2.neg()) || (!(neg() ^ op2.neg()) && !neg() ^ magnitude_lt(op2)) )
-      && !isnan() && !op2.isnan();
+      ((operator ==(op2)) | (!neg() & op2.neg()) | ((!(neg() ^ op2.neg())) & (!neg() ^ magnitude_lt(op2))) )
+      & !isnan() & !op2.isnan();
   }
   bool operator >(const ac_std_float &op2) const {
     return
-      operator !=(op2)
-      && ( (!neg() && op2.neg()) || (!(neg() ^ op2.neg()) && !neg() ^ magnitude_lt(op2)) )
-      && !isnan() && !op2.isnan();
+      (operator !=(op2))
+      & ( (!neg() & op2.neg()) | ((!(neg() ^ op2.neg())) & (!neg() ^ magnitude_lt(op2))) )
+      & !isnan() & !op2.isnan();
   }
   bool operator <=(const ac_std_float &op2) const {
     return
-      (operator == (op2) || (neg() && !op2.neg()) || (!neg() ^ op2.neg() && neg() ^ magnitude_lt(op2)) )
-      && !isnan() && !op2.isnan();
+      ((operator == (op2)) | (neg() & !op2.neg()) | ((!neg() ^ op2.neg()) & (neg() ^ magnitude_lt(op2))) )
+      & !isnan() & !op2.isnan();
   }
   bool operator !() const { return !ac_int<W-1,false>(d); }
   ac_std_float operator -() const {
@@ -1645,9 +1664,9 @@ inline std::ostream& operator << (std::ostream &os, const ac_std_float<W,E> &x) 
   } else if ((os.flags() & std::ios::oct) != 0) {
     os << x.data().to_string(AC_OCT,false,true);
   } else {
-    if(W <= 32 && E <= 8) {
+    if((W <= 32) & (E <= 8)) {
       os << x.to_float();
-    } else if(W <= 64 && E <= 11) {
+    } else if((W <= 64) & (E <= 11)) {
       os << x.to_double();
     } else {
       // operator << for decimal not yet implemented for ac_std_float with W > 64 or E > 11
@@ -1806,7 +1825,7 @@ struct float_helper {
   float_helper(float f) { d = f; }
   float_helper(const float_helper &f) { d = f.d; }
   float_helper(const float_helper &f, bool no_subnormals) {
-    d = no_subnormals && f.fpclassify() == FP_SUBNORMAL ? std::signbit(f.d) ? -0.0 : 0.0 : f.d;
+    d = no_subnormals & (f.fpclassify() == FP_SUBNORMAL) ? std::signbit(f.d) ? -0.0 : 0.0 : f.d;
   }
   float_helper(const ac_std_float<32,8> &f) { set_data(f.data().to_int()); }
   template<ac_q_mode Q>
@@ -1942,7 +1961,7 @@ struct double_helper {
   double_helper(double f) { d = f; }
   double_helper(const float_helper &f) { d = f.d; }
   double_helper(const double_helper &f, bool no_subnormals) {
-    d = no_subnormals && f.fpclassify() == FP_SUBNORMAL ? std::signbit(f.d) ? -0.0 : 0.0 : f.d;
+    d = no_subnormals & (f.fpclassify() == FP_SUBNORMAL) ? std::signbit(f.d) ? -0.0 : 0.0 : f.d;
   }
   double_helper(const ac_std_float<64,11> &f) { set_data(f.data().to_int64()); }
   template<ac_q_mode Q>
@@ -2517,16 +2536,16 @@ public:
   }
 
   bfloat16 operator +(const bfloat16 &op2) const {
-    return bfloat16(to_helper_t().add<AC_TRN_ZERO,false>(op2.to_helper_t()));
+    return bfloat16(to_helper_t().add<AC_STD_FLOAT_BFLOAT16_ROUND,false>(op2.to_helper_t()));
   }
   bfloat16 operator -(const bfloat16 &op2) const {
-    return bfloat16(to_helper_t().sub<AC_TRN_ZERO,false>(op2.to_helper_t()));
+    return bfloat16(to_helper_t().sub<AC_STD_FLOAT_BFLOAT16_ROUND,false>(op2.to_helper_t()));
   }
   bfloat16 operator *(const bfloat16 &op2) const {
-    return bfloat16(to_helper_t().mult<AC_TRN_ZERO,false>(op2.to_helper_t()));
+    return bfloat16(to_helper_t().mult<AC_STD_FLOAT_BFLOAT16_ROUND,false>(op2.to_helper_t()));
   }
   bfloat16 operator /(const bfloat16 &op2) const {
-    return bfloat16(to_helper_t().div<AC_TRN_ZERO,false>(op2.to_helper_t()));
+    return bfloat16(to_helper_t().div<AC_STD_FLOAT_BFLOAT16_ROUND,false>(op2.to_helper_t()));
   }
   bfloat16 &operator +=(const bfloat16 &op2) {
     return *this = operator +(op2);

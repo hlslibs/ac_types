@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.8                                                 *
+ *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Jan 28 19:38:23 PST 2024                        *
+ *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.8.0                                               *
+ *  Release Build   : 4.9.0                                               *
  *                                                                        *
  *  Copyright 2005-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -238,6 +238,24 @@ __AC_FIXED_UTILITY_BASE
 
   inline bool is_neg() const { return S && Base::v[N-1] < 0; }
 
+  template <class T_stream>
+  void write_to_fs_private(T_stream& fs) const {
+    #ifdef AC_VALID_FSTREAM
+    AC_ASSERT(fs.good(), "File stream is not good.");
+    #endif
+
+    fs.write(reinterpret_cast<const char*>(&Base::v[0]), sizeof(Base::v));
+  }
+
+  template <class T_stream>
+  void read_from_fs_private(T_stream& fs) {
+    #ifdef AC_VALID_FSTREAM
+    AC_ASSERT(fs.good(), "File stream is not good.");
+    #endif
+
+    fs.read(reinterpret_cast<char*>(&Base::v[0]), sizeof(Base::v));
+  }
+
 public:
   static const int width = W;
   static const int i_width = I;
@@ -397,6 +415,15 @@ public:
     shiftl_t r;
     Base::template const_shift_l<shiftl_t::N,W2>(r);
     return r;
+  }
+
+  // Construct ac_fixed with file streams.
+  explicit inline ac_fixed(std::ifstream &ifs) {
+    read_from_fs_private(ifs);
+  }
+
+  explicit inline ac_fixed(std::fstream &fs) {
+    read_from_fs_private(fs);
   }
 
   inline ac_fixed( bool b ) { *this = (ac_int<1,false>) b; }
@@ -1083,6 +1110,25 @@ public:
     this->set_slc(0,m);
     return r;
   }
+
+  inline void write_to_fs(std::ofstream &ofs) const {
+    write_to_fs_private(ofs);
+  }
+
+  inline void write_to_fs(std::fstream &fs) const {
+    write_to_fs_private(fs);
+  }
+
+  inline ac_fixed & read_from_fs(std::ifstream &ifs) {
+    read_from_fs_private(ifs);
+    return *this;
+  }
+
+  inline ac_fixed & read_from_fs(std::fstream &fs) {
+    read_from_fs_private(fs);
+    return *this;
+  }
+
   bool and_reduce() const {
     return this->template slc<W>(0).and_reduce();
   }
@@ -1480,6 +1526,34 @@ namespace ac {
     return true;
   }
 
+  // functions to initialize array from filestream.
+
+  template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
+  inline bool init_array(ac_fixed<W,I,S,Q,O> *a, int n, std::ifstream &ifs) {
+    for (int i = 0; i < n; i++) { a[i].read_from_fs(ifs); }
+    return true;
+  }
+
+  template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
+  inline bool init_array(ac_fixed<W,I,S,Q,O> *a, int n, std::fstream &fs) {
+    for (int i = 0; i < n; i++) { a[i].read_from_fs(fs); }
+    return true;
+  }
+
+  // functions to dump array to filestream.
+
+  template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
+  inline bool dump_array(const ac_fixed<W,I,S,Q,O> *a, int n, std::ofstream &ofs) {
+    for (int i = 0; i < n; i++) { a[i].write_to_fs(ofs); }
+    return true;
+  }
+
+  template<int W, int I, bool S, ac_q_mode Q, ac_o_mode O>
+  inline bool dump_array(const ac_fixed<W,I,S,Q,O> *a, int n, std::fstream &fs) {
+    for (int i = 0; i < n; i++) { a[i].write_to_fs(fs); }
+    return true;
+  }
+
   inline ac_fixed<54,2,true> frexp_d(double d, ac_int<11,true> &exp) {
     enum {Min_Exp = -1022, Max_Exp = 1023, Mant_W = 52, Denorm_Min_Exp = Min_Exp - Mant_W};
     if(!d) {
@@ -1493,7 +1567,7 @@ namespace ac {
     exp_i--;
     int rshift = exp_i < Min_Exp ? Min_Exp - exp_i : (exp_i > Min_Exp && f0 < 0 && f0 >= -0.5) ? -1 : 0;
     exp = exp_i + rshift;
-    ac_int<Mant_W+2,true> f_i = f0 * ((Ulong) 1 << (Mant_W + 1 -rshift));
+    ac_int<Mant_W+2,true> f_i = f0 * ((double)((Ulong) 1 << (Mant_W + 1 -rshift)));
     ac_fixed<Mant_W+2,2,true> r;
     r.set_slc(0, f_i);
     return r;
@@ -1511,7 +1585,7 @@ namespace ac {
     exp_i--;
     int rshift = exp_i < Min_Exp ? Min_Exp - exp_i : (exp_i >= Min_Exp && f0 < 0 && f0 >= -0.5) ? -1 : 0;
     exp = exp_i + rshift;
-    ac_int<Mant_W+2,true> f_i = f0 * (1 << (Mant_W + 1 - rshift));
+    ac_int<Mant_W+2,true> f_i = f0 * ((float)(1 << (Mant_W + 1 - rshift)));
     ac_fixed<Mant_W+2,2,true> r;
     r.set_slc(0, f_i);
     return r;
@@ -1532,7 +1606,7 @@ namespace ac {
     exp_i--;
     int rshift = exp_i < Min_Exp ? Min_Exp - exp_i : 0;
     exp = exp_i + rshift;
-    ac_int<Mant_W+1,false> f_i = f0 * ((Ulong) 1 << (Mant_W + 1 -rshift));
+    ac_int<Mant_W+1,false> f_i = f0 * ((double)((Ulong) 1 << (Mant_W + 1 -rshift)));
     ac_fixed<Mant_W+1,1,false> r;
     r.set_slc(0, f_i);
     sign = s;
@@ -1547,13 +1621,13 @@ namespace ac {
     }
     int exp_i;
     bool s = f < 0;
-    float f0 = frexp(s ? -f : f, &exp_i);
+    float f0 = frexpf(s ? -f : f, &exp_i);
     AC_ASSERT(exp_i <= Max_Exp+1, "Exponent greater than standard single-precision float exponent max (+128). It is probably an extended float");
     AC_ASSERT(exp_i >= Denorm_Min_Exp+1, "Exponent less than standard single-precision float exponent min (-125). It is probably an extended float");
     exp_i--;
     int rshift = exp_i < Min_Exp ? Min_Exp - exp_i : 0;
     exp = exp_i + rshift;
-    ac_int<24,false> f_i = f0 * (1 << (Mant_W + 1 - rshift));
+    ac_int<24,false> f_i = f0 * ((float)(1 << (Mant_W + 1 - rshift)));
     ac_fixed<24,1,false> r;
     r.set_slc(0, f_i);
     sign = s;
