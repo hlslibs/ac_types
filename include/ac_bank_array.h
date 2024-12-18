@@ -4,9 +4,9 @@
  *                                                                        *
  *  Software Version: 4.9                                                 *
  *                                                                        *
- *  Release Date    : Sun Aug 25 18:06:59 PDT 2024                        *
+ *  Release Date    : Fri Nov  8 16:32:34 PST 2024                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.9.0                                               *
+ *  Release Build   : 4.9.7                                               *
  *                                                                        *
  *  Copyright 2004-2020, Mentor Graphics Corporation,                     *
  *                                                                        *
@@ -104,6 +104,9 @@ template <typename B>
 class ac_bank_array_base<B, 1>
 {
 public: // required public for SCVerify
+#ifdef __SYNTHESIS__
+#pragma hls_ac_bank_mem
+#endif
   B a;
 public:
   B &operator[](size_t idx) { return a; }
