@@ -8,7 +8,7 @@
  *  Release Type    : Production Release                                  *
  *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2004-2020 Siemens                                                *
+ *  Copyright 2024 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -31,79 +31,46 @@
  *                                                                        *
  *************************************************************************/
 
-/*
-//  Source:         ac_sync.h
-*/
+// ac_shared_array_1D.h
+// Stuart Swan, Platform Architect, Siemens EDA
+// 11 April 2024
+//
+// ac_shared_array_1D<> is a 1 dimensional shared array that provides
+// assertion checking on index violations in both the pre-HLS model and in the post-HLS RTL
+//
+// usage:
+//   instead of :
+//       uint16 my_array[0x1000];
+//   use:
+//       ac_shared_array_1D<uint16, 0x1000> my_array;
 
-#ifndef __AC_SYNC_H
-#define __AC_SYNC_H
 
-#include <ac_channel.h>
+#ifndef __AC_SHARED_ARRAY_1D_H
+#define __AC_SHARED_ARRAY_1D_H
 
-////////////////////////////////////////////////////////////////////////////////
-// Class: ac_sync
-////////////////////////////////////////////////////////////////////////////////
+#include <cstddef>
+#include <ac_assert.h>
 
-#if defined(__SYNTHESIS__)
-#pragma builtin
-#define INHERIT_MODE private
-#else
-#define INHERIT_MODE public
-#endif
-class ac_sync : INHERIT_MODE ac_channel<bool>
+#include <ac_shared_proxy.h>
+
+template <typename T, size_t D1>
+class ac_shared_array_1D
 {
+  ac_shared<T [D1]> data;
 public:
-  typedef ac_channel<bool> Base;
-
-  // constructor
-  ac_sync(): Base() { }
-
-template <typename ...T> 
-void sync_in(T &...t) {
-    Base::read();
-}
-
-template <typename ...T> 
-void sync_out(T &...t) {
-    Base::write(true);
-}
-
-  inline bool nb_sync_in() {
-    bool rval = true;
-    bool dummy_obj;
-    rval = Base::nb_read(dummy_obj); // During synthesis -- builtin treatment
-    return rval;
+  T &operator[](size_t idx) {
+#ifndef __SYNTHESIS__
+    assert(idx < D1);
+#endif
+    return data[idx];
   }
 
-  #if 0
-  inline bool nb_sync_out();
-  #else
-  // C simulation always returns true -- So, 'else' branch based on the
-  // successs of 'nb_write' is not exercisable in C simulation, as the
-  // underlying buffer is unbounded in C model.
-  // But, in RTL, when mapped to two-way handshake component, both 'if' and
-  // 'else' branch are exercisable in RTL
-  inline bool nb_sync_out() {
-    bool rval = true;
-    rval = Base::nb_write(rval);
-    return rval;
+  const T &operator[](size_t idx) const {
+#ifndef __SYNTHESIS__
+    assert(idx < D1);
+#endif
+    return data[idx];
   }
-  #endif
-
-  inline bool available( unsigned int cnt) {
-    return Base::available(cnt);
-  }
-
-  #ifdef __CONNECTIONS__CONNECTIONS_H__
-  void bind(Connections::SyncIn  &c)  { Base::bind(c); }
-  void bind(Connections::SyncOut &c)  { Base::bind(c); }
-  #endif
-
-private:
-  // Prevent the compiler from autogenerating these.
-  // This enforces that ac_sync are always passed by reference.
-  ac_sync(const ac_sync &);
-  ac_sync &operator=(const ac_sync &);
 };
 
 #endif

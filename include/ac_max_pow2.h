@@ -8,7 +8,7 @@
  *  Release Type    : Production Release                                  *
  *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2004-2020 Siemens                                                *
+ *  Copyright 2024 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -31,79 +31,23 @@
  *                                                                        *
  *************************************************************************/
 
-/*
-//  Source:         ac_sync.h
-*/
+#ifndef __AC_POW2_HELPER_H
+#define __AC_POW2_HELPER_H
 
-#ifndef __AC_SYNC_H
-#define __AC_SYNC_H
+// local helper class for maximum power of 2 <= W
 
-#include <ac_channel.h>
+template <size_t W>
+struct ac_max_pow2;
 
-////////////////////////////////////////////////////////////////////////////////
-// Class: ac_sync
-////////////////////////////////////////////////////////////////////////////////
+template <>
+struct ac_max_pow2<1> {
+  static const size_t P = 1;
+};
 
-#if defined(__SYNTHESIS__)
-#pragma builtin
-#define INHERIT_MODE private
-#else
-#define INHERIT_MODE public
-#endif
-class ac_sync : INHERIT_MODE ac_channel<bool>
-{
-public:
-  typedef ac_channel<bool> Base;
-
-  // constructor
-  ac_sync(): Base() { }
-
-template <typename ...T> 
-void sync_in(T &...t) {
-    Base::read();
-}
-
-template <typename ...T> 
-void sync_out(T &...t) {
-    Base::write(true);
-}
-
-  inline bool nb_sync_in() {
-    bool rval = true;
-    bool dummy_obj;
-    rval = Base::nb_read(dummy_obj); // During synthesis -- builtin treatment
-    return rval;
-  }
-
-  #if 0
-  inline bool nb_sync_out();
-  #else
-  // C simulation always returns true -- So, 'else' branch based on the
-  // successs of 'nb_write' is not exercisable in C simulation, as the
-  // underlying buffer is unbounded in C model.
-  // But, in RTL, when mapped to two-way handshake component, both 'if' and
-  // 'else' branch are exercisable in RTL
-  inline bool nb_sync_out() {
-    bool rval = true;
-    rval = Base::nb_write(rval);
-    return rval;
-  }
-  #endif
-
-  inline bool available( unsigned int cnt) {
-    return Base::available(cnt);
-  }
-
-  #ifdef __CONNECTIONS__CONNECTIONS_H__
-  void bind(Connections::SyncIn  &c)  { Base::bind(c); }
-  void bind(Connections::SyncOut &c)  { Base::bind(c); }
-  #endif
-
-private:
-  // Prevent the compiler from autogenerating these.
-  // This enforces that ac_sync are always passed by reference.
-  ac_sync(const ac_sync &);
-  ac_sync &operator=(const ac_sync &);
+template <size_t W>
+struct ac_max_pow2 {
+  typedef ac_max_pow2<(W>>1)> SUB;
+  static const size_t P = SUB::P << 1;
 };
 
 #endif

@@ -2,15 +2,15 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.9                                                 *
+ *  Software Version: 5.1                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  8 16:32:34 PST 2024                        *
+ *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.9.7                                               *
+ *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2018-2022, Mentor Graphics Corporation,                     *
+ *  Copyright 2018-2022 Siemens                                                *
  *                                                                        *
- *  All Rights Reserved.                                                  *
+ *                                                                        *
  *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *
@@ -898,7 +898,7 @@ public:
     r.d.set_slc(mant_bits, ac_int<E,false>(exp_bias));
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
   ac_std_float add_generic(const ac_std_float &op2) const {
     ac_private::check_supported<QR>();
 
@@ -945,13 +945,14 @@ public:
     e_dif_sat_t e_dif_sat = ac_fixed<ac::nbits<mu_bits+1>::val,ac::nbits<mu_bits+1>::val,false,AC_TRN,AC_SAT>(e_dif).to_ac_int();
 
     bool m1_eq_m2 = (op1_mu == op2_mu);
-    bool r_sign = op1_smaller & op2_sign;
-    r_sign |= !op1_smaller & op1_sign;
-    r_sign = (r_sign & !(e1_eq_e2 & m1_eq_m2)) | (op1_sign & op2_sign);
+    bool op_sign = op1_smaller & op2_sign;
+    op_sign |= !op1_smaller & op1_sign;
+    op_sign = (op_sign & !(e1_eq_e2 & m1_eq_m2)) | (op1_sign & op2_sign);
+    bool r_sign = Effective_Add ? op1_sign : op_sign;
     bool r_normal = true;
     bool r_inf = false;
 
-    bool do_sub = op1_sign != op2_sign;
+    bool do_sub = !Effective_Add && (op1_sign != op2_sign);
 
     // compute add/sub of mantissa
     // we know result will be positive
@@ -976,9 +977,10 @@ public:
     res_mant += add_GRS_t(op_bigger) + (add_GRS_t(do_sub)>>3);
 
     // compute left shift and res exponent
-    bool all_sign;
-    ac_int<ac::nbits<mu_bits+1+3>::val,false> ls = res_mant.leading_sign(all_sign);
-    bool r_zero = all_sign; // we know res_mant >= 0, so all_sign means equal zero
+    bool all_sign = false;
+    typedef ac_int<ac::nbits<mu_bits+1+3>::val,false> ls_t; 
+    ls_t ls = Effective_Add ? (ls_t) !res_mant[mu_bits+3] : (ls_t) res_mant.leading_sign(all_sign);
+    bool r_zero = Effective_Add ? (bool) op1_zero & op2_zero : all_sign; // we know res_mant >= 0, so all_sign means equal zero
     int resexp = exp - ls;
     bool incr = 0;
     if (resexp < 0) {
@@ -1031,10 +1033,10 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
   ac_std_float add(const ac_std_float &op2) const {
 #ifndef AC_STD_FLOAT_ADD_OVERRIDE
-    return add_generic<QR,No_SubNormals>(op2);
+    return add_generic<QR,No_SubNormals,Effective_Add>(op2);
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_ADD_OVERRIDE<QR,No_SubNormals>(*this, op2);
 #endif
@@ -1252,7 +1254,17 @@ public:
         q_shift_amount = shift_l;
       }
     }
-    q <<= (q_shift_amount + (No_SubNormals & (exp_neq_0_or_1 & shift_l)));
+    ac_int<mu_bits+3,false> q1 = 0;
+    if (q_shift_amount) {
+      if (No_SubNormals & (exp_neq_0_or_1 & shift_l)) {
+        q1.set_slc(2, q.template slc<mu_bits+1>(0));
+      } else {
+        q1.set_slc(1, q.template slc<mu_bits+2>(0));
+      }
+    } else {
+      q1 = q;
+    }
+    q = q1; 
     q[0] = q[0] | sticky_bit;
     ac_fixed<mu_bits+1,mu_bits+4,false,QR> r_rnd = q;
     bool rnd_ovf = r_rnd[mu_bits];
@@ -1305,7 +1317,6 @@ public:
     bool mult_nan = op1_nan | op2_nan | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_zero = op1_zero | op2_zero;  // mult_nan has precedence later on
     int mult_exp_b = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
-    mult_exp_b |= ac_int<E,false>( (op1_inf | op2_inf) ? -1 : 0 );
     ac_int<2*mu_bits,false> p = op1_mu * op2_mu;
     if(No_SubNormals)
       p &= ac_int<2*mu_bits,false>(mult_zero ? 0 : -1);
@@ -1318,41 +1329,63 @@ public:
 
     int e_dif = mult_exp_b - op3_e_b;
     bool emult_lt_e3 = e_dif < 0;
-    e_dif = (mult_zero | op3_zero) ? 0 : emult_lt_e3 ? -e_dif : e_dif;
+    e_dif = emult_lt_e3 ? -e_dif : e_dif;
 
-    typedef ac_int<2*mu_bits+4,true> add_t;
+    const int extra_lsb = mu_bits -2; // (mu_bits -2) + mu_bits+6 = 2*mu_bits+4
+    const int accu_size = No_SubNormals ? mu_bits+6+extra_lsb: 2*mu_bits+4; 
+    AC_ASSERT(!No_SubNormals || (extra_lsb >=-3 && extra_lsb <= mu_bits -2), "The FMA accumulator has invalid size. The value of extra_lsb shoudle be in range {-3, mantissa_width-1}");
+    typedef ac_int<accu_size,true> add_t;
     add_t op3_m_s = op3_m;
-    op3_m_s <<= mu_bits+1;   // mult: ii.ffff, op3: i.ff
-    add_t p_s = p;
-    p_s <<= 2;
+    add_t p_s;
+    if (No_SubNormals) {
+      const int shift_out = (mu_bits -1) - (extra_lsb);
+      op3_m_s <<= 3 + extra_lsb;
+      p_s = p >> shift_out;
+      p_s <<= 3;
+      p_s[2] = p[shift_out-1]; 
+      const int ptr_1 = (shift_out-2 > 0) ? shift_out-2 : 0;
+      p_s[1] = (shift_out-2 >= 0) ? p[ptr_1] : ac_int<1,false>(0); 
+      const int s_w = (shift_out-3 > 0) ? shift_out-3 : 0;
+      p_s[0] = (shift_out-3 > 0)  ? (p.template slc<s_w>(0)).or_reduce() : 0; 
+    } else {
+      op3_m_s <<= mu_bits+1;   // mult: ii.ffff, op3: i.ff
+      p_s = p;
+      p_s <<= 2;
+    }
     add_t op_lshift = emult_lt_e3 ? p_s : op3_m_s;
     add_t op_no_shift = emult_lt_e3 ? op3_m_s : p_s;
-
+    
+    typedef ac_int<ac::nbits<accu_size>::val,false> e_dif_sat_t;
+    e_dif_sat_t e_dif_sat = ac_fixed<ac::nbits<accu_size>::val,ac::nbits<accu_size>::val,false,AC_TRN,AC_SAT>(e_dif).to_ac_int();
     add_t shifted_out_bits = op_lshift;
-    shifted_out_bits &= ~((~add_t(0)) << (unsigned) e_dif);
+    shifted_out_bits &= ~((add_t(-1)) << ((mult_zero | op3_zero) ? e_dif_sat_t(0) : e_dif_sat));
     bool sticky_bit = !!shifted_out_bits;
 
-    op_lshift >>= (unsigned) e_dif;
+    op_lshift >>= ((mult_zero | op3_zero) ? e_dif_sat_t(0) : e_dif_sat);
     add_t add_r = op_lshift + op_no_shift;
     bool add_exact_zero = !add_r & !sticky_bit;
     bool r_neg = add_r[add_t::width-1];
-
-    int exp = ( ((emult_lt_e3 & !op3_zero) | mult_zero) ? op3_e_b : mult_exp_b);
-
+    
+    int exp = ( ((emult_lt_e3 & !op3_zero) | mult_zero) ? ( op3_e_b + 2 ) : ( mult_exp_b + 2 ) );
+    
     bool all_sign;
     int ls = add_r.leading_sign(all_sign);
     // no bit growth of add_r
-    int max_shift_left = exp + (- min_exp - exp_bias + 2);
+    int max_shift_left = exp + (- min_exp - exp_bias);
     bool shift_exponent_limited = ls >= max_shift_left;
     int shift_l = shift_exponent_limited ? max_shift_left : ls;
-    add_r <<= shift_l;
+
+    typedef ac_int<ac::nbits<accu_size>::val+!No_SubNormals,!No_SubNormals> shift_l_sat_t;
+    shift_l_sat_t shift_l_sat = ac_fixed<ac::nbits<accu_size>::val+!No_SubNormals,ac::nbits<accu_size>::val+!No_SubNormals,!No_SubNormals,AC_TRN,AC_SAT>(shift_l).to_ac_int();
+    add_r <<= shift_l_sat;   
     add_r[0] = add_r[0] | sticky_bit;
 
-    ac_fixed<mu_bits+1,2*mu_bits+4,true,QR> r_rnd = add_r;
+    ac_fixed<mu_bits+1,accu_size,true,QR> r_rnd = add_r;
 
+    const int slc_ptr = No_SubNormals ? 4+extra_lsb : mu_bits+2;
     typedef ac_int<mu_bits+1,false> t_h;
-    t_h t = add_r.template slc<mu_bits+1>(mu_bits+2);
-    bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & !add_r[2*mu_bits+3] & t == t_h(-1);
+    t_h t = add_r.template slc<mu_bits+1>(slc_ptr);
+    bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & !add_r[accu_size-1] & t == t_h(-1);
     bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : (r_neg ^ toggle_r_sign) & !add_exact_zero;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
     bool r_zero = !rnd_ovf & !r_rnd_i;
@@ -1363,15 +1396,16 @@ public:
     bool r_normal = r_un[mant_bits] | shift_r;
     r_zero |= No_SubNormals & !r_normal;
     ac_int<mant_bits,false> m_r = r_un.template slc<mant_bits>(0);
-    exp = (shift_exponent_limited ? min_exp + exp_bias : exp - ls + 2) + shift_r;
-    bool r_inf = mult_inf | op3_inf | (exp > max_exp + exp_bias);
-    if(QR==AC_TRN_ZERO) {
-      exp = r_inf ? max_exp + exp_bias : exp;
-      m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
+    exp = (shift_exponent_limited ? min_exp + exp_bias : exp - ls) + shift_r;
+    bool r_inf = (exp > max_exp + exp_bias);
+    if((QR==AC_TRN_ZERO) & (r_inf)) {
+      exp = max_exp + exp_bias;
+      m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1) if r_inf
       r_inf = false;
     }
-    bool r_nan = op3_nan | mult_nan | ((op3_inf & (op1_inf | op2_inf)) & (op3_sign ^ mult_sign));
-    bool exception = op3_inf | mult_inf | op3_nan | mult_nan | r_inf;
+    bool r_nan = op3_nan | mult_nan | ((op3_inf & mult_inf) & (op3_sign ^ mult_sign));
+    r_inf |= mult_inf | op3_inf;
+    bool exception = r_nan | r_inf;
     ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
     if(exception | r_zero) {
       m_r = 0;
@@ -2234,9 +2268,13 @@ public:
   bool isinf() const { return Base::to_helper_t().isinf(); }
   bool isnan() const { return Base::to_helper_t().isnan(); }
 
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
   ac_ieee_float add(const ac_ieee_float &op2) const {
+    #ifdef AC_IEEE_FLOAT_USE_BUILTIN
     return ac_ieee_float(Base(Base::to_helper_t().template add<QR,No_SubNormals>(op2.Base::to_helper_t())));
+    #else
+    return ac_ieee_float(Base(Base::to_helper_t().template add<QR,No_SubNormals,Effective_Add>(op2.Base::to_helper_t())));
+    #endif
   }
   template<ac_q_mode QR, bool No_SubNormals>
   ac_ieee_float sub(const ac_ieee_float &op2) const {
@@ -2510,9 +2548,9 @@ public:
   }
   explicit bfloat16(double val) { *this = bfloat16(ac_ieee_float<binary64>(val)); }
 
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
   bfloat16 add(const bfloat16 &op2) const {
-    return bfloat16(to_helper_t().add<QR,No_SubNormals>(op2.to_helper_t()));
+    return bfloat16(to_helper_t().add<QR,No_SubNormals,Effective_Add>(op2.to_helper_t()));
   }
   template<ac_q_mode QR, bool No_SubNormals>
   bfloat16 sub(const bfloat16 &op2) const {

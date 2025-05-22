@@ -2,15 +2,15 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.9                                                 *
+ *  Software Version: 5.1                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  8 16:32:34 PST 2024                        *
+ *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.9.7                                               *
+ *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2013-2021, Mentor Graphics Corporation,                     *
+ *  Copyright 2013-2021 Siemens                                                *
  *                                                                        *
- *  All Rights Reserved.                                                  *
+ *                                                                        *
  *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *

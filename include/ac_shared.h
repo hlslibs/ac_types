@@ -8,7 +8,7 @@
  *  Release Type    : Production Release                                  *
  *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2004-2020 Siemens                                                *
+ *  Copyright 2019 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -32,79 +32,71 @@
  *************************************************************************/
 
 /*
-//  Source:         ac_sync.h
+//  Source:         ac_shared.h
+//  Description:    Catapult built-in class to declare intent to share an
+//                  an object between different threads/processes.
+//                  It can be used as a replacement of its base type.
+//  Author:         Peter Gutberlet
 */
 
-#ifndef __AC_SYNC_H
-#define __AC_SYNC_H
+#ifndef __AC_SHARED_H
+#define __AC_SHARED_H
 
-#include <ac_channel.h>
+#include <ac_int.h>
 
-////////////////////////////////////////////////////////////////////////////////
-// Class: ac_sync
-////////////////////////////////////////////////////////////////////////////////
+template <typename T>
+class ac_shared
+{
+  #if defined(CCS_SCVERIFY) || defined(__SYNTHESIS__)
+public:
+  #endif
+  T      d;
 
-#if defined(__SYNTHESIS__)
-#pragma builtin
-#define INHERIT_MODE private
-#else
-#define INHERIT_MODE public
-#endif
-class ac_sync : INHERIT_MODE ac_channel<bool>
+public:
+
+  ac_shared() {}
+  ac_shared(const ac_shared &s) : d(s.d) {}
+  ac_shared(const T &t) : d(t) {}
+  template <typename T2> ac_shared(const T2 &t) : d(t) {}
+
+  operator const T &() const   { return d; }
+  operator       T &()         { return d; }
+
+  const ac_shared &operator =(const ac_shared &s) { d = s.d; return *this; }
+  const T &operator =(const T &t) { d = t; return d; }
+  template <typename T2>
+  const T &operator =(const T2 &t) { d = t; return d; }
+};
+
+template <typename T>
+class ac_shared_d : public T
 {
 public:
-  typedef ac_channel<bool> Base;
+  ac_shared_d() {}
+  ac_shared_d(const ac_shared_d &s) : T(s) {}
+  ac_shared_d(const T &t) : T(t) {}
+  template <typename T2> ac_shared_d(const T2 &t) : T(t) {}
 
-  // constructor
-  ac_sync(): Base() { }
-
-template <typename ...T> 
-void sync_in(T &...t) {
-    Base::read();
-}
-
-template <typename ...T> 
-void sync_out(T &...t) {
-    Base::write(true);
-}
-
-  inline bool nb_sync_in() {
-    bool rval = true;
-    bool dummy_obj;
-    rval = Base::nb_read(dummy_obj); // During synthesis -- builtin treatment
-    return rval;
-  }
-
-  #if 0
-  inline bool nb_sync_out();
-  #else
-  // C simulation always returns true -- So, 'else' branch based on the
-  // successs of 'nb_write' is not exercisable in C simulation, as the
-  // underlying buffer is unbounded in C model.
-  // But, in RTL, when mapped to two-way handshake component, both 'if' and
-  // 'else' branch are exercisable in RTL
-  inline bool nb_sync_out() {
-    bool rval = true;
-    rval = Base::nb_write(rval);
-    return rval;
-  }
-  #endif
-
-  inline bool available( unsigned int cnt) {
-    return Base::available(cnt);
-  }
-
-  #ifdef __CONNECTIONS__CONNECTIONS_H__
-  void bind(Connections::SyncIn  &c)  { Base::bind(c); }
-  void bind(Connections::SyncOut &c)  { Base::bind(c); }
-  #endif
-
-private:
-  // Prevent the compiler from autogenerating these.
-  // This enforces that ac_sync are always passed by reference.
-  ac_sync(const ac_sync &);
-  ac_sync &operator=(const ac_sync &);
+  const ac_shared_d &operator =(const ac_shared_d &s) { T::operator =(s); return *this; }
+  const T &operator =(const T &t) { T::operator =(t); return *this; }
+  template <typename T2>
+  const T &operator =(const T2 &t) { T::operator =(t); return *this; }
 };
+
+#ifdef __AC_NAMESPACE
+namespace __AC_NAMESPACE
+{
+#endif
+
+  namespace ac
+  {
+    template <ac_special_val V, typename T>
+    inline bool init_array(ac_shared<T> &a, int n) { return init_array<V> (&*a, n); }
+  }
+  #ifdef __AC_NAMESPACE
+}
+  #endif
+
 
 #endif
 

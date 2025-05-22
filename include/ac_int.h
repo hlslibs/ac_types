@@ -2,15 +2,15 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 4.9                                                 *
+ *  Software Version: 5.1                                                 *
  *                                                                        *
- *  Release Date    : Fri Nov  8 16:32:34 PST 2024                        *
+ *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 4.9.7                                               *
+ *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2004-2022, Mentor Graphics Corporation,                     *
+ *  Copyright 2004-2022 Siemens                                                *
  *                                                                        *
- *  All Rights Reserved.                                                  *
+ *                                                                        *
  *                                                                        *
  **************************************************************************
  *  Licensed under the Apache License, Version 2.0 (the "License");       *
@@ -133,15 +133,22 @@
 // VRA-related includes and definitions.
 #ifdef __SYNTHESIS__
 // disable all class extensions when doing synthesis
-#define AC_INT_VRA_DISABLE(a)
-#else // VRA kicks in outside of HLS.
+// void(0) is used as it is a compiler-safe no-op.
+// Refer to assert.h for an example of similar no-op usage.
+#define AC_INT_VRA_DISABLE(a) (void(0))
+#define AC_INT_VRA_ENABLE(a) (void(0))
+#else // VRA kicks in outside of HLS, if enabled.
 #ifdef AC_INT_VRA
 // Note that the value range analysis feature of AC Int is only available with a full
 // Catapult installation.
 #include "ovf_ac_int.h"
-#define AC_INT_VRA_DISABLE(a) a.disable_vra();
+#define AC_INT_VRA_DISABLE(a) a.disable_vra()
+#define AC_INT_VRA_ENABLE(a) a.enable_vra()
 #else
-#define AC_INT_VRA_DISABLE(a)
+// void(0) is used as it is a compiler-safe no-op.
+// Refer to assert.h for an example of similar no-op usage.
+#define AC_INT_VRA_DISABLE(a) (void(0))
+#define AC_INT_VRA_ENABLE(a) (void(0))
 #endif
 #endif
 
@@ -2011,36 +2018,49 @@ __AC_INT_UTILITY_BASE
 
   #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
   template <int W2, bool S2>
-  inline void bit_adjust_vra(const ac_int<W2, S2> &orig_in, bool is_ppo2 = false) {
+  inline void bit_adjust_vra(const ac_int<W2, S2> &orig_in, int extern_mbits) {
     bit_adjust();
-    NumBase::update(orig_in.to_double(), ovf_vra(orig_in), is_ppo2);
+    bool overflow_seen = ovf_vra(orig_in);
+    NumBase::update(orig_in.to_double(), overflow_seen, extern_mbits);
+  }
+
+  inline void bit_adjust_vra(const double orig_in, int extern_mbits) {
+    bit_adjust();
+    NumBase::update(orig_in, ovf_vra(orig_in, extern_mbits), extern_mbits);
   }
 
   template <class T>
-  inline void bit_adjust_vra(const T orig_in, bool is_ppo2 = false) {
+  inline void bit_adjust_vra(const T orig_in, int extern_mbits = 0) {
     bit_adjust();
-    double orig_double = (double)orig_in; // Convert to double if the input isn't already a double value.
-    NumBase::update(orig_double, ovf_vra(orig_in), is_ppo2);
+    double orig_double = (double)orig_in;
+    NumBase::update(orig_double, ovf_vra(orig_in), extern_mbits);
   }
 
   inline void this_update() {
-    NumBase::update(this->to_double(), false, is_ppo2_ac_int(*this));
+    NumBase::update(this->to_double(), false, ac_int_vra_ns::calc_extern_mbits(*this));
   }
 
   inline static ac_int get_max_vra() {
     ac_int r(AC_VRA_STACK_NOT_TRACED);
-    return r.template set_val<AC_VAL_MAX>();
+    r.template set_val<AC_VAL_MAX>();
+    return r;
   }
 
   inline static ac_int get_min_vra() {
     ac_int r(AC_VRA_STACK_NOT_TRACED);
-    return r.template set_val<AC_VAL_MIN>();
+    r.template set_val<AC_VAL_MIN>();
+    return r;
   }
 
-  inline static bool ovf_vra(double input) {
-    static const double min_val = get_min_vra().to_double();
-    static const double max_val = get_max_vra().to_double();
-    return (input < min_val || input > max_val);
+  inline static bool ovf_vra(const double input, int extern_mbits) {
+    bool input_is_neg = (input < 0.0);
+    if (!S && input_is_neg) {
+      return true;
+    }
+
+    // Is the target signed and the input non-negative?
+    bool starget_nneg_input = (S && !input_is_neg);
+    return (extern_mbits > W - (int(starget_nneg_input)));
   }
 
   template <int W2, bool S2>
@@ -2063,7 +2083,7 @@ __AC_INT_UTILITY_BASE
   inline static bool ovf_vra(T input) {
     constexpr bool S2 = std::is_signed<T>::value;
     constexpr int W2 = std::numeric_limits<T>::digits + int(S2);
-    constexpr int N2 = (W2 + 31 + !S2)/32;
+    constexpr int N2 = ac_int<W2, S2>::N;
     typedef ac_private::iv<N2> Base2;
     ac_int<W2, S2> input_(AC_VRA_STACK_NOT_TRACED);
     input_.Base2::operator =(input);
@@ -2199,8 +2219,20 @@ public:
   };
 
   #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+  friend ac_int<std::numeric_limits<double>::digits + 1, true> get_thresh_min();
+
+  friend ac_int<std::numeric_limits<double>::digits, false> get_thresh_max();
+
   template <int W2, bool S2>
-  friend bool is_ppo2_ac_int(const ac_int<W2, S2> &input);
+  friend int ac_int_vra_ns::calc_extern_mbits(const ac_int<W2, S2> &op2);
+
+  template <class T>
+  friend int ac_int_vra_ns::calc_extern_mbits(const T op2);
+
+  // Make this a friend function so that you can access the ac_int constructor
+  // that bypasses stack tracing.
+  template<ac_special_val V, int W2, bool S2>
+  friend ac_int<W2,S2> value(ac_int<W2,S2>);
   #endif
 
   template<int W2, bool S2> friend class ac_int;
@@ -2214,7 +2246,7 @@ public:
   inline ac_int (const ac_int<W2,S2> &op) {
     Base::operator =(op);
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
-    bit_adjust_vra(op, is_ppo2_ac_int(op));
+    bit_adjust_vra(op, ac_int_vra_ns::calc_extern_mbits(op));
     #else
     bit_adjust();
     #endif
@@ -2244,11 +2276,11 @@ public:
   inline ac_int( unsigned short b ) : ConvBase(b) { bit_adjust_vra(b); }
   inline ac_int( signed int b ) : ConvBase(b) { bit_adjust_vra(b); }
   inline ac_int( unsigned int b ) : ConvBase(b) { bit_adjust_vra(b); }
-  inline ac_int( signed long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
-  inline ac_int( unsigned long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
-  inline ac_int( Slong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
-  inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::is_ppo2(b)); }
-  inline ac_int( double d ) : ConvBase(d) { bit_adjust_vra(d); }
+  inline ac_int( signed long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
+  inline ac_int( unsigned long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
+  inline ac_int( Slong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
+  inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
+  inline ac_int( double d ) : ConvBase(d) { bit_adjust_vra(d, ac_int_vra_ns::calc_double_bits(d)); }
   #else
   inline ac_int( bool b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( char b ) : ConvBase(b) { bit_adjust(); }
@@ -2737,6 +2769,8 @@ public:
     #else
     ac_int r;
     #endif
+    if (W2 > 32)
+      AC_ASSERT(((op2 < (long(1) << 31)) && (op2 >= (long(-1) << 31))) || (op2[W2-1] == op2[31]), "Attempting to shift by a value outside of the 32bit range. Such big values are not supported and may lead to Synthesis or Simulation mismatch.");
     Base::shift_l2(op2.to_int(), r);
     r.bit_adjust();
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -2751,6 +2785,8 @@ public:
     #else
     ac_int r;
     #endif
+    if (W2 > 32)
+      AC_ASSERT((op2 < unsigned(int(-1))), "Attempting to shift by a value outside of the 32bit range. Such big values are not supported and may lead to Synthesis or Simulation mismatch.");
     Base::shift_l(op2.to_uint(), r);
     r.bit_adjust();
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -2765,6 +2801,8 @@ public:
     #else
     ac_int r;
     #endif
+    if (W2 > 32)
+      AC_ASSERT(((op2 < (long(1) << 31)) && (op2 >= (long(-1) << 31))) || (op2[W2-1] == op2[31]), "Attempting to shift by a value outside of the 32bit range. Such big values are not supported and may lead to Synthesis or Simulation mismatch.");
     Base::shift_r2(op2.to_int(), r);
     r.bit_adjust();
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -2779,6 +2817,8 @@ public:
     #else
     ac_int r;
     #endif
+    if (W2 > 32)
+      AC_ASSERT((op2 < unsigned(int(-1))), "Attempting to shift by a value outside of the 32bit range. Such big values are not supported and may lead to Synthesis or Simulation mismatch.");
     Base::shift_r(op2.to_uint(), r);
     r.bit_adjust();
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -2789,34 +2829,54 @@ public:
   // Shift assign ------------------------------------------------------------
   template<int W2>
   ac_int &operator <<= ( const ac_int<W2,true> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator <<(op2);
+    #else
     Base r;
     Base::shift_l2(op2.to_int(), r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2>
   ac_int &operator <<= ( const ac_int<W2,false> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator <<(op2);
+    #else
     Base r;
     Base::shift_l(op2.to_uint(), r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2>
   ac_int &operator >>= ( const ac_int<W2,true> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator >>(op2);
+    #else
     Base r;
     Base::shift_r2(op2.to_int(), r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   template<int W2>
   ac_int &operator >>= ( const ac_int<W2,false> &op2 ) {
+    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+    // Explicit assignment from one ac_int type to the other is needed for VRA instrumentation.
+    *this = this->operator >>(op2);
+    #else
     Base r;
     Base::shift_r(op2.to_uint(), r);
     Base::operator=(r);
     bit_adjust();
+    #endif
     return *this;
   }
   // Relational ---------------------------------------------------------------
@@ -3606,8 +3666,15 @@ using namespace ac_intN;
 // Global templatized functions for easy initialization to special values
 template<ac_special_val V, int W, bool S>
 inline ac_int<W,S> value(ac_int<W,S>) {
+  #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
+  // Accessing this private constructor is possible because the value()
+  // function is declared a friend to the ac_int class when VRA is enabled.
+  ac_int<W,S> r(AC_VRA_STACK_NOT_TRACED);
+  #else
   ac_int<W,S> r;
-  return r.template set_val<V>();
+  #endif
+  r.template set_val<V>();
+  return r;
 }
 // forward declaration, otherwise GCC errors when calling init_array
 template<ac_special_val V, int W, int I, bool S, ac_q_mode Q, ac_o_mode O>

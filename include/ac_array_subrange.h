@@ -8,7 +8,7 @@
  *  Release Type    : Production Release                                  *
  *  Release Build   : 5.1.1                                               *
  *                                                                        *
- *  Copyright 2004-2020 Siemens                                                *
+ *  Copyright 2024 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -31,80 +31,95 @@
  *                                                                        *
  *************************************************************************/
 
-/*
-//  Source:         ac_sync.h
-*/
+// ac_array_subrange.h
+// Stuart Swan, Platform Architect, Siemens EDA
+// 11 Feb 2025
+//
+// ac_array_subrange allows subranges to be constructed from other ac*array classes.
+// These subranges can be used in HLS models as if they were self-contained arrays,
+// and in particular pre-HLS and post-HLS assertions are created to check that all indexes used
+// to access the array are in the specified subrange.
+//
+// This class works in both the Catapult SystemC flow and the C++ flow.
 
-#ifndef __AC_SYNC_H
-#define __AC_SYNC_H
+#ifndef __AC_ARRAY_SUBRANGE_H
+#define __AC_ARRAY_SUBRANGE_H
 
-#include <ac_channel.h>
+#include <cstddef>
+#include <ac_assert.h>
 
-////////////////////////////////////////////////////////////////////////////////
-// Class: ac_sync
-////////////////////////////////////////////////////////////////////////////////
+#include <ac_array_1D.h>
+#include <ac_wr_mask_array.h>
 
-#if defined(__SYNTHESIS__)
-#pragma builtin
-#define INHERIT_MODE private
-#else
-#define INHERIT_MODE public
-#endif
-class ac_sync : INHERIT_MODE ac_channel<bool>
+
+
+//==========================================================================
+
+
+template <class B>
+class ac_array_subrange
 {
 public:
-  typedef ac_channel<bool> Base;
+  B &array;
+  size_t offset; // offset of this subrange wrt base array
+  size_t size;   // size of this subrange
+  typedef decltype(array[0]) T;
 
-  // constructor
-  ac_sync(): Base() { }
+  ac_array_subrange(B &_array, size_t _offset, size_t _size)
+    : array(_array), offset(_offset), size(_size)
+  {}
 
-template <typename ...T> 
-void sync_in(T &...t) {
-    Base::read();
-}
-
-template <typename ...T> 
-void sync_out(T &...t) {
-    Base::write(true);
-}
-
-  inline bool nb_sync_in() {
-    bool rval = true;
-    bool dummy_obj;
-    rval = Base::nb_read(dummy_obj); // During synthesis -- builtin treatment
-    return rval;
+  T &operator[](size_t idx) {
+#ifndef __SYNTHESIS__
+    assert(idx < size);
+#endif
+    return array[idx + offset];
   }
 
-  #if 0
-  inline bool nb_sync_out();
-  #else
-  // C simulation always returns true -- So, 'else' branch based on the
-  // successs of 'nb_write' is not exercisable in C simulation, as the
-  // underlying buffer is unbounded in C model.
-  // But, in RTL, when mapped to two-way handshake component, both 'if' and
-  // 'else' branch are exercisable in RTL
-  inline bool nb_sync_out() {
-    bool rval = true;
-    rval = Base::nb_write(rval);
-    return rval;
+  const T &operator[](size_t idx) const {
+#ifndef __SYNTHESIS__
+    assert(idx < size);
+#endif
+    return array[idx + offset];
   }
-  #endif
-
-  inline bool available( unsigned int cnt) {
-    return Base::available(cnt);
-  }
-
-  #ifdef __CONNECTIONS__CONNECTIONS_H__
-  void bind(Connections::SyncIn  &c)  { Base::bind(c); }
-  void bind(Connections::SyncOut &c)  { Base::bind(c); }
-  #endif
-
-private:
-  // Prevent the compiler from autogenerating these.
-  // This enforces that ac_sync are always passed by reference.
-  ac_sync(const ac_sync &);
-  ac_sync &operator=(const ac_sync &);
 };
+
+template <typename T, int Dim1, int SliceWidth, bool use_be_ram>
+class ac_array_subrange<ac_wr_mask_array_1D<T, Dim1, SliceWidth, use_be_ram>>
+{
+public:
+  typedef ac_wr_mask_array_1D<T, Dim1, SliceWidth, use_be_ram> array_t;
+  typedef typename array_t::WriteMask mask_t;
+  array_t &array;
+  size_t offset; // offset of this subrange wrt base array
+  size_t size;   // size of this subrange
+
+  ac_array_subrange(array_t &_array, size_t _offset, size_t _size)
+    : array(_array), offset(_offset), size(_size)
+  {}
+
+  void write(unsigned idx, T val, mask_t mask_val=~0) {
+#ifndef __SYNTHESIS__
+    assert(idx < size);
+#endif
+    array.write(idx + offset, val, mask_val);
+  }
+
+  T read(unsigned idx) {
+#ifndef __SYNTHESIS__
+    assert(idx < size);
+#endif
+    return array.read(idx + offset);
+  }
+};
+
+
+// This create function is used to enable template argument deduction
+template <class B>
+ac_array_subrange<B> create_ac_array_subrange(B &array, size_t offset, size_t size)
+{
+  return ac_array_subrange<B>(array, offset, size);
+}
 
 #endif
 
