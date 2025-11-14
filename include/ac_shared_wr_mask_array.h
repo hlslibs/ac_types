@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2024 Siemens                                                *
  *                                                                        *
@@ -80,9 +80,7 @@ public:
 
   // use this function when HLS cannot handle elem_proxy functions
   void write(unsigned idx, T val, WriteMask mask_val=~0) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     Data_t write_data = TypeToBits<T>(val);
     #pragma hls_unroll yes
     for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
@@ -93,9 +91,7 @@ public:
 
   template <typename slice_t>
   void write(idx_t idx, const slice_t val[num_slices], WriteMask mask_val=~0) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     const ac_int<32, false> slice_w = SliceWidth;
     #pragma hls_unroll yes
     for (ac_int<32, false> i=0; i < num_slices; ++i) {
@@ -106,9 +102,7 @@ public:
 
   // use this function when HLS cannot handle elem_proxy functions
   T read(unsigned idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     Data_t read_data = TypeToBits<NVUINTW(ac_shared_wr_mask_array_1D::WordWidth)>(0);
     #pragma hls_unroll yes
     for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
@@ -121,9 +115,7 @@ public:
 
   template <typename slice_t>
   void read(slice_t val[num_slices], unsigned idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     #pragma hls_unroll yes
     for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
       auto read_data = mem[i][idx];
@@ -142,9 +134,7 @@ public:
       : array(_array), idx(_idx), mask_val(_mask) {}
 
     operator T () {
-#ifndef __SYNTHESIS__
-      assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
       Data_t read_data = TypeToBits<NVUINTW(ac_shared_wr_mask_array_1D::WordWidth)>(0);
       #pragma hls_unroll yes
       for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
@@ -156,9 +146,7 @@ public:
     }
 
     void operator=(const T &val) {
-#ifndef __SYNTHESIS__
-      assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
       Data_t write_data = TypeToBits<T>(val);
       #pragma hls_unroll yes
       for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
@@ -209,9 +197,7 @@ public:
 
   // use this function when HLS cannot handle elem_proxy functions
   void write(idx_t idx, data_t val, WriteMask mask_val=~0) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     const ac_int<32, false> slice_w = SliceWidth;
     #pragma hls_unroll yes
     for (ac_int<32, false> i=0; i < num_slices; ++i) {
@@ -222,9 +208,7 @@ public:
 
   template <typename slice_t>
   void write(idx_t idx, const slice_t val[num_slices], WriteMask mask_val=~0) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     const ac_int<32, false> slice_w = SliceWidth;
     #pragma hls_unroll yes
     for (ac_int<32, false> i=0; i < num_slices; ++i) {
@@ -235,17 +219,13 @@ public:
 
   // use this function when HLS cannot handle elem_proxy functions
   T read(idx_t idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     return mem[idx];
   }
 
   template <typename slice_t>
   void read(slice_t val[num_slices], unsigned idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
     #pragma hls_unroll yes
     for (unsigned i = 0; i < ac_shared_wr_mask_array_1D::num_slices; i++) {
       auto read_data = mem[idx];
@@ -262,16 +242,12 @@ public:
       : array(_array), idx(_idx), mask_val(_mask) {}
 
     operator T () {
-#ifndef __SYNTHESIS__
-      assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
       return array.mem[idx];
     }
 
     void operator=(const ac_shared_wr_mask_array_1D::data_t &val) {
-#ifndef __SYNTHESIS__
-      assert(idx < ac_shared_wr_mask_array_1D::dim1);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < ac_shared_wr_mask_array_1D::dim1);
       const ac_int<32, false> slice_w = SliceWidth;
       #pragma hls_unroll yes
       for (ac_int<32, false> i=0; i < num_slices; ++i) {

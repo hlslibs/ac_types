@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2004-2022 Siemens                                                *
  *                                                                        *
@@ -132,16 +132,34 @@
 
 // VRA-related includes and definitions.
 #ifdef __SYNTHESIS__
+
 // disable all class extensions when doing synthesis
 // void(0) is used as it is a compiler-safe no-op.
 // Refer to assert.h for an example of similar no-op usage.
 #define AC_INT_VRA_DISABLE(a) (void(0))
 #define AC_INT_VRA_ENABLE(a) (void(0))
+
 #else // VRA kicks in outside of HLS, if enabled.
-#ifdef AC_INT_VRA
-// Note that the value range analysis feature of AC Int is only available with a full
+
+#ifdef AC_FIXED_VRA
+// Must un-define __AC_FIXED_NUMERICAL_ANALYSIS_BASE here rather than in ac_fixed.h, so that the
+// definition sticks around when ac_fixed.h is used.
+#ifdef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+#undef __AC_FIXED_NUMERICAL_ANALYSIS_BASE
+#endif
+
+#endif
+
+#if defined (AC_INT_VRA) || defined(AC_FIXED_VRA)
+// Note that the value range analysis feature of AC Int and AC Fixed is only available with a full
 // Catapult installation.
-#include "ovf_ac_int.h"
+
+// Regardless of whether you use ac_int or ac_fixed VRA, vra_instr.h will be included here to avoid
+// redefinition conflicts with ac_q_mode and ac_o_mode.
+#include "vra_instr.h"
+#endif
+
+#ifdef AC_INT_VRA
 #define AC_INT_VRA_DISABLE(a) a.disable_vra()
 #define AC_INT_VRA_ENABLE(a) a.enable_vra()
 #else
@@ -150,6 +168,7 @@
 #define AC_INT_VRA_DISABLE(a) (void(0))
 #define AC_INT_VRA_ENABLE(a) (void(0))
 #endif
+
 #endif
 
 #ifdef __AC_NAMESPACE
@@ -1981,8 +2000,11 @@ namespace ac {
   };
 }
 
+#ifndef _INCLUDED_VRA_INSTR_H_
+// If VRA instrumentation is used, these enums were already defined in vra_instr.h .
 enum ac_q_mode { AC_TRN, AC_RND, AC_TRN_ZERO, AC_RND_ZERO, AC_RND_INF, AC_RND_MIN_INF, AC_RND_CONV, AC_RND_CONV_ODD };
 enum ac_o_mode { AC_WRAP, AC_SAT, AC_SAT_ZERO, AC_SAT_SYM };
+#endif
 template<int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2> class ac_fixed;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2018,26 +2040,26 @@ __AC_INT_UTILITY_BASE
 
   #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
   template <int W2, bool S2>
-  inline void bit_adjust_vra(const ac_int<W2, S2> &orig_in, int extern_mbits) {
+  inline void bit_adjust_vra(const ac_int<W2, S2> &orig_in, int int_bits) {
     bit_adjust();
     bool overflow_seen = ovf_vra(orig_in);
-    NumBase::update(orig_in.to_double(), overflow_seen, extern_mbits);
+    NumBase::update(orig_in.to_double(), overflow_seen, int_bits);
   }
 
-  inline void bit_adjust_vra(const double orig_in, int extern_mbits) {
+  inline void bit_adjust_vra(const double orig_in, int int_bits) {
     bit_adjust();
-    NumBase::update(orig_in, ovf_vra(orig_in, extern_mbits), extern_mbits);
+    NumBase::update(orig_in, ovf_vra(orig_in, int_bits), int_bits);
   }
 
   template <class T>
-  inline void bit_adjust_vra(const T orig_in, int extern_mbits = 0) {
+  inline void bit_adjust_vra(const T orig_in, int int_bits = 0) {
     bit_adjust();
     double orig_double = (double)orig_in;
-    NumBase::update(orig_double, ovf_vra(orig_in), extern_mbits);
+    NumBase::update(orig_double, ovf_vra(orig_in), int_bits);
   }
 
   inline void this_update() {
-    NumBase::update(this->to_double(), false, ac_int_vra_ns::calc_extern_mbits(*this));
+    NumBase::update(this->to_double(), false, ac_vra_ns::calc_int_bits(*this));
   }
 
   inline static ac_int get_max_vra() {
@@ -2224,10 +2246,10 @@ public:
   friend ac_int<std::numeric_limits<double>::digits, false> get_thresh_max();
 
   template <int W2, bool S2>
-  friend int ac_int_vra_ns::calc_extern_mbits(const ac_int<W2, S2> &op2);
+  friend int ac_vra_ns::calc_int_bits(const ac_int<W2, S2> &op2);
 
   template <class T>
-  friend int ac_int_vra_ns::calc_extern_mbits(const T op2);
+  friend int ac_vra_ns::calc_int_bits(const T op2);
 
   // Make this a friend function so that you can access the ac_int constructor
   // that bypasses stack tracing.
@@ -2246,7 +2268,7 @@ public:
   inline ac_int (const ac_int<W2,S2> &op) {
     Base::operator =(op);
     #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
-    bit_adjust_vra(op, ac_int_vra_ns::calc_extern_mbits(op));
+    bit_adjust_vra(op, ac_vra_ns::calc_int_bits(op));
     #else
     bit_adjust();
     #endif
@@ -2276,11 +2298,11 @@ public:
   inline ac_int( unsigned short b ) : ConvBase(b) { bit_adjust_vra(b); }
   inline ac_int( signed int b ) : ConvBase(b) { bit_adjust_vra(b); }
   inline ac_int( unsigned int b ) : ConvBase(b) { bit_adjust_vra(b); }
-  inline ac_int( signed long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
-  inline ac_int( unsigned long b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
-  inline ac_int( Slong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
-  inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust_vra(b, ac_int_vra_ns::calc_extern_mbits(b)); }
-  inline ac_int( double d ) : ConvBase(d) { bit_adjust_vra(d, ac_int_vra_ns::calc_double_bits(d)); }
+  inline ac_int( signed long b ) : ConvBase(b) { bit_adjust_vra(b, ac_vra_ns::calc_int_bits(b)); }
+  inline ac_int( unsigned long b ) : ConvBase(b) { bit_adjust_vra(b, ac_vra_ns::calc_int_bits(b)); }
+  inline ac_int( Slong b ) : ConvBase(b) { bit_adjust_vra(b, ac_vra_ns::calc_int_bits(b)); }
+  inline ac_int( Ulong b ) : ConvBase(b) { bit_adjust_vra(b, ac_vra_ns::calc_int_bits(b)); }
+  inline ac_int( double d ) : ConvBase(d) { bit_adjust_vra(d, ac_vra_ns::calc_int_bits(d)); }
   #else
   inline ac_int( bool b ) : ConvBase(b) { bit_adjust(); }
   inline ac_int( char b ) : ConvBase(b) { bit_adjust(); }
@@ -3785,7 +3807,7 @@ namespace ac {
 #ifdef AC_INT_VRA
 // Note that the value range analysis feature of AC Int is only available with a full
 // Catapult installation.
-#include "ovf_ac_int_fns.h"
+#include "vra_instr_int_fns.h"
 #endif
 
 #endif // __AC_INT_H

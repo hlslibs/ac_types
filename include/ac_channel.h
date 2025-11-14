@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2004-2020 Siemens                                                *
  *                                                                        *
@@ -132,7 +132,7 @@ public:
   bool nb_peek(T& t) { return chan.nb_peek(t); }
 
   void write(const T& t) { chan.write(t); }
-  bool nb_write(T& t) {
+  bool nb_write(const T& t) {
     chan.incr_size_call_count();
     return chan.nb_write(t);
   }
@@ -168,8 +168,8 @@ public:
 
 private:
 # ifndef AC_CHANNEL_ASSERT
-#   define AC_CHANNEL_ASSERT(cond, code) ac_assert(cond, __FILE__, __LINE__, code)
-    static inline void ac_assert(bool condition, const char *file, int line, const ac_channel_exception::code &code) {
+#   define AC_CHANNEL_ASSERT(cond, code) ac_assert_pvt(cond, __FILE__, __LINE__, code)
+    static inline void ac_assert_pvt(bool condition, const char *file, int line, const ac_channel_exception::code &code) {
 #     ifndef AC_USER_DEFINED_ASSERT
         if(!condition) {
           const ac_exception e(file, line, code, ac_channel_exception::msg(code));
@@ -212,7 +212,7 @@ public:
       virtual T peek() = 0;
       virtual bool nb_peek(T& t) = 0;
       virtual void write(const T& t) = 0;
-      virtual bool nb_write(T& t) = 0;
+      virtual bool nb_write(const T& t) = 0;
       virtual bool empty() = 0;
       virtual bool available(unsigned int k) const = 0;
       virtual unsigned int size() const = 0;
@@ -271,7 +271,7 @@ public:
       bool nb_peek(T& t) { return empty() ? false : (t = peek(), true); }
 
       void write(const T& t) { ch.push_back(t); }
-      bool nb_write(T& t) { return !num_free() ? false : (write(t), true); }
+      bool nb_write(const T& t) { return !num_free() ? false : (write(t), true); }
 
       bool empty() {  return size() == 0; }
       bool available(unsigned int k) const { return size() >= k; }
@@ -309,7 +309,7 @@ public:
       }
 
       void write(const T& t) { fifo_out->write(t); }
-      bool nb_write(T& t) { return !num_free() ? false : (write(t), true); }
+      bool nb_write(const T& t) { return !num_free() ? false : (write(t), true); }
 
       bool empty() {  return size() == 0; }
       bool available(unsigned int k) const { return size() >= k; }
@@ -354,7 +354,7 @@ private:
       }
 
       void write(const T& t) { fifo_out->Push(t); }
-      bool nb_write(T& t) { return fifo_out->PushNB(t); }
+      bool nb_write(const T& t) { return fifo_out->PushNB(t); }
 
       bool empty() {
         if (fifo_in)
@@ -404,7 +404,7 @@ private:
       }
 
       void write(const T& t) { sync_out->sync_out(); }
-      bool nb_write(T& t) { sync_out->sync_out(); return true; }
+      bool nb_write(const T& t) { sync_out->sync_out(); return true; }
 
       bool empty() {
         AC_CHANNEL_ASSERT(0, ac_channel_exception::no_output_empty_in_connections);
@@ -470,7 +470,7 @@ private:
     inline bool nb_peek(T& t) { return f->nb_peek(t); }
 
     inline void write(const T& t) { f->write(t); }
-    inline bool nb_write(T& t) { return f->nb_write(t); }
+    inline bool nb_write(const T& t) { return f->nb_write(t); }
 
     inline bool empty() { return f->empty(); }
     inline bool available(unsigned int k) const { return f->available(k); }

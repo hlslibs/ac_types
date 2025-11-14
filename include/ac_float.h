@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2013-2021 Siemens                                                *
  *                                                                        *
@@ -321,14 +321,12 @@ private:
     typedef ac_fixed<t_width,I2,true,Q2,O2> op2_t;
     op2_t op2 = m2;
     int ls = 0;
-    bool r_zero;
     if(force_normalize) {
       bool all_sign;
       ls = m2.leading_sign(all_sign).to_int();
-      r_zero = all_sign & !m2[0];
     } else if(msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
       // msb_min_power_dif < 0: src exponent less negative than trg exp represents
-      //   oportunity to further normalize value in trg representation
+      //   opportunity to further normalize value in trg representation
       // msb_max_power_dif < 0: max target exp is less than max src exp
       //   if un-normalized exp may overflow resulting in incorrect saturation
       //     normalization is needed for correctness
@@ -340,11 +338,9 @@ private:
       const int norm_w = AC_MAX(msb_range_dif_norm_w, extra_bits) + 1;
       bool all_sign;
       ls = m2.template slc<norm_w>(W2-norm_w).leading_sign(all_sign).to_int();
-      r_zero = all_sign & !m2[W2-1] & !(m2 << norm_w);
-    } else {
-      r_zero = !m2;
     }
     int actual_max_shift_left = (1 << (E-1)) + e_t;
+    bool min_exp_v = false;
     if(may_shift_right & (actual_max_shift_left < 0)) {
       const int shift_r_w = ac::nbits<max_right_shift>::val;
       ac_int<shift_r_w,false> shift_r = -actual_max_shift_left;
@@ -354,12 +350,14 @@ private:
         sticky_bit |= !!shifted_out_bits;
       }
       op2 >>= shift_r;
-      e_t += shift_r.to_int();
+      e_t = MIN_EXP;
+      min_exp_v = true;
     } else {
       bool shift_exponent_limited = ls >= actual_max_shift_left;
       int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
       op2 <<= shift_l;
       e_t = shift_exponent_limited ? MIN_EXP : e_t - ls;
+      min_exp_v = shift_exponent_limited;
     }
     ac_fixed<t_width+need_rem_bits,I,true> r_pre_rnd = 0;
     r_pre_rnd.set_slc(need_rem_bits, op2.template slc<t_width>(0));
@@ -367,7 +365,18 @@ private:
       r_pre_rnd[0] = sticky_bit;
 
     bool shift_r1 = round(r_pre_rnd, assert_on_rounding);
-    e_t = r_zero ? 0 : e_t + shift_r1;
+    bool r_zero_rnd = !m; // zero after rounding
+    
+    // for left/shifted negative values, rounding can produce a non-normalized result
+    bool shift_r2 = (W >= 2) ? m[W-1] & m[W-2] & !min_exp_v : false;
+    m = shift_r2 ? (m << 1) : m;
+    int sub_exp = shift_r2 ? -1 : 0;
+
+    #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
+    e_t = (r_zero_rnd) ? 0 : e_t + sub_exp + shift_r1;
+    #else
+    e_t = (r_zero_rnd) ? MIN_EXP : e_t + sub_exp + shift_r1;
+    #endif
     if(!(e_t < 0) & !!(e_t >> E-1)) {
       e = MAX_EXP;
       m = m < 0 ? value<AC_VAL_MIN>(m) : value<AC_VAL_MAX>(m);
@@ -382,13 +391,19 @@ private:
     }
   }
 
-  ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, ac_int<E,true> isZero, bool normalize=true) {
+  ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, ac_int<1,true> isZero, bool normalize=true) {
     m = m2;
     e = e2;
     if(normalize)
       this->normalize();
     else
+    {
+      #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
       e &= ~isZero;
+      #else
+      e = isZero ? MIN_EXP : e;
+      #endif
+    }
   }
 
 public:
@@ -409,7 +424,11 @@ public:
         int shift_l = shift_exponent_limited ? actual_max_shift_left : (int) ls;
         m <<= shift_l;
         e = shift_exponent_limited ? MIN_EXP : e_t - ls;
+        #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
         e &= ac_int<1,true>(!!op.m);
+        #else
+        e = (!op.m) ? MIN_EXP : e;
+        #endif
       }
     } else {
       const int min_exp2 = fl2_t::MIN_EXP;
@@ -424,7 +443,11 @@ public:
     if(normalize)
       this->normalize();
     else
+      #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
       e &= ac_int<1,true>(!!m);
+      #else
+      e = (!m) ? MIN_EXP : e;
+      #endif
   }
 
   template<int WFX, int IFX, bool SFX, ac_q_mode QFX, ac_o_mode OFX, int E2>
@@ -490,7 +513,11 @@ public:
     bool normal = ls <= max_shift_left;
     int shift_l = normal ? ls : max_shift_left;
     m <<= shift_l;
+    #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
     e = ac_int<1,true>(!m_zero) & (e - shift_l);
+    #else
+    e = m_zero ? MIN_EXP : (e - shift_l);
+    #endif
     return normal;
   }
   
@@ -699,7 +726,7 @@ public:
   typename rt< AC_FL_TV0(2) >::mult operator *(const AC_FL(2) &op2) const {
     typedef typename rt< AC_FL_TV0(2) >::mult r_t;
     const ac_int<1,false> zero = ((m==0) | (op2.m==0));
-    r_t r(m*op2.m, exp()+op2.exp(), -zero, false);
+    r_t r(m*op2.m, exp()+op2.exp(), zero, false);
     return r;
   }
 

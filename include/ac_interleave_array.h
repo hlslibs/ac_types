@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2004-2022 Siemens                                                *
  *                                                                        *
@@ -62,22 +62,16 @@ class ac_interleave_array_1D
     }
 
     B &operator[](size_t idx) {
-#ifndef __SYNTHESIS__
-      assert(idx < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < FirstDim);
       size_t aidx = idx;
       size_t bank_idx = aidx&(InterleaveFactor-1); // low order address bits select the bank
       size_t block_idx = aidx>>(BankBits(InterleaveFactor));  // high order address bits select the blocks within the bank
-#ifndef __SYNTHESIS__
-      assert(block_idx < SecondDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(block_idx < SecondDim);
       return mem_bank[bank_idx][block_idx];
    }
 
     const B &operator[](size_t idx) const {
-#ifndef __SYNTHESIS__
-      assert(idx < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx < FirstDim);
       size_t aidx = idx;
       size_t bank_idx = aidx&(InterleaveFactor-1); // low order address bits select the bank
       size_t block_idx = aidx>>(BankBits(InterleaveFactor)); // high order address bits select the blocks within the bank
@@ -109,17 +103,13 @@ class ac_interleave_array_2D
         SecondDimAccess(ac_interleave_array_2D & obj, size_t idx1) : idxFirstDim(idx1), intMemObj(obj) {}
 
         B &operator[](size_t idx2) {
-#ifndef __SYNTHESIS__
-          assert(idx2 < SecondDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx2 < SecondDim);
           return intMemObj.mem_bank[idx2][idxFirstDim];
         }
     };
 
     SecondDimAccess operator[](size_t idx1) {
-#ifndef __SYNTHESIS__
-      assert(idx1 < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx1 < FirstDim);
       return SecondDimAccess(*this, idx1);
     }
 
@@ -131,17 +121,13 @@ class ac_interleave_array_2D
         ConstSecondDimAccess(const ac_interleave_array_2D & obj, size_t idx1) : idxFirstDim(idx1), intMemObj(obj) {}
 
         const B &operator[](size_t idx2) const {
-#ifndef __SYNTHESIS__
-          assert(idx2 < SecondDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx2 < SecondDim);
           return intMemObj.mem_bank[idx2][idxFirstDim];
         }
     };
 
     ConstSecondDimAccess operator[](size_t idx1) const {
-#ifndef __SYNTHESIS__
-      assert(idx1 < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx1 < FirstDim);
       return ConstSecondDimAccess(*this, idx1);
     }
 };
@@ -175,9 +161,7 @@ class ac_interleave_array_3D
         ThirdDimAccess(ac_interleave_array_3D & obj, size_t idx1, size_t idx2) : idxFirstDim(idx1), idxSecondDim(idx2), intMemObj(obj) {}
 
         B &operator[](size_t idx3) {
-#ifndef __SYNTHESIS__
-          assert(idx3 < ThirdDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx3 < ThirdDim);
           return intMemObj.mem_bank[idx3][idxFirstDim][idxSecondDim];
         }
     };
@@ -191,17 +175,13 @@ class ac_interleave_array_3D
         SecondDimAccess(ac_interleave_array_3D & obj, size_t idx1) : idxFirstDim(idx1), intMemObj(obj) {}
 
         ThirdDimAccess operator[](size_t idx2) {
-#ifndef __SYNTHESIS__
-          assert(idx2 < SecondDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx2 < SecondDim);
           return ThirdDimAccess(intMemObj, idxFirstDim, idx2);
         }
     };
 
     SecondDimAccess operator[](size_t idx1) {
-#ifndef __SYNTHESIS__
-      assert(idx1 < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx1 < FirstDim);
       return SecondDimAccess(*this, idx1);
     }
 
@@ -215,9 +195,7 @@ class ac_interleave_array_3D
         ConstThirdDimAccess(const ac_interleave_array_3D & obj, size_t idx1, size_t idx2) : idxFirstDim(idx1), idxSecondDim(idx2), intMemObj(obj) {}
 
         const B &operator[](size_t idx3) const {
-#ifndef __SYNTHESIS__
-          assert(idx3 < ThirdDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx3 < ThirdDim);
           return intMemObj.mem_bank[idx3][idxFirstDim][idxSecondDim];
         }
     };
@@ -231,17 +209,13 @@ class ac_interleave_array_3D
         ConstSecondDimAccess(const ac_interleave_array_3D & obj, size_t idx1) : idxFirstDim(idx1), intMemObj(obj) {}
 
         ConstThirdDimAccess operator[](size_t idx2) const {
-#ifndef __SYNTHESIS__
-          assert(idx2 < SecondDim);
-#endif
+          AC_A_BANK_ARRAY_ASSERTION(idx2 < SecondDim);
           return ConstThirdDimAccess(intMemObj, idxFirstDim, idx2);
         }
     };
 
     ConstSecondDimAccess operator[](size_t idx1) const {
-#ifndef __SYNTHESIS__
-      assert(idx1 < FirstDim);
-#endif
+      AC_A_BANK_ARRAY_ASSERTION(idx1 < FirstDim);
       return ConstSecondDimAccess(*this, idx1);
     }
 };

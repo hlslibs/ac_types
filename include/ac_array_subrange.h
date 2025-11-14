@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2024 Siemens                                                *
  *                                                                        *
@@ -48,13 +48,9 @@
 #include <cstddef>
 #include <ac_assert.h>
 
-#include <ac_array_1D.h>
 #include <ac_wr_mask_array.h>
 
-
-
 //==========================================================================
-
 
 template <class B>
 class ac_array_subrange
@@ -70,16 +66,12 @@ public:
   {}
 
   T &operator[](size_t idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < size);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < size);
     return array[idx + offset];
   }
 
   const T &operator[](size_t idx) const {
-#ifndef __SYNTHESIS__
-    assert(idx < size);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < size);
     return array[idx + offset];
   }
 };
@@ -99,16 +91,12 @@ public:
   {}
 
   void write(unsigned idx, T val, mask_t mask_val=~0) {
-#ifndef __SYNTHESIS__
-    assert(idx < size);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < size);
     array.write(idx + offset, val, mask_val);
   }
 
   T read(unsigned idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < size);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < size);
     return array.read(idx + offset);
   }
 };

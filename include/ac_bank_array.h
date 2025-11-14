@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2024 Siemens                                                *
  *                                                                        *
@@ -78,11 +78,11 @@
 // ac_bank_array_base is the base class for banked arrays,
 // and typically is not directly used in user models.
 
-template <typename B, size_t C>
+template <typename B, size_t C, size_t I = 0>
 class ac_bank_array_base;
 
-template <typename B>
-class ac_bank_array_base<B, 1>
+template <typename B, size_t I>
+class ac_bank_array_base<B, 1, I>
 {
 public: // required public for SCVerify
   #pragma hls_ac_bank_mem
@@ -93,8 +93,8 @@ public:
 };
 
 // specialization to get index checking of rightmost dimension using ac_array_1D
-template <typename E, size_t D>
-class ac_bank_array_base<E [D], 1>
+template <typename E, size_t D, size_t I>
+class ac_bank_array_base<E [D], 1, I>
 {
 public: // required public for SCVerify
   typedef ac_array_1D<E,D> AC;
@@ -105,53 +105,45 @@ public:
   const AC &operator[](size_t idx) const { return a; }
 };
 
-template <typename B, size_t C>
+template <typename B, size_t C, size_t I>
 class ac_bank_array_base
 {
   static const size_t W = ac_max_pow2<C-1>::P;
 public: // required public for SCVerify
-  ac_bank_array_base<B, W  > a0;
-  ac_bank_array_base<B, C-W> a1;
+  ac_bank_array_base<B, W  , I> a0;
+  ac_bank_array_base<B, C-W, I+W> a1;
 public:
   B &operator[](size_t idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < C);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < C);
     size_t aidx = idx & (W-1);
     return idx&W ? a1[aidx] : a0[aidx];
   }
 
   const B &operator[](size_t idx) const {
-#ifndef __SYNTHESIS__
-    assert(idx < C);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < C);
     size_t aidx = idx & (W-1);
     return idx&W ? a1[aidx] : a0[aidx];
   }
 };
 
 // specialization to get index checking of rightmost dimension using ac_array_1D
-template <typename E, size_t D, size_t C>
-class ac_bank_array_base<E [D], C>
+template <typename E, size_t D, size_t C, size_t I>
+class ac_bank_array_base<E [D], C, I>
 {
   public:
   typedef ac_array_1D<E,D> AC;
   typedef E B[D];
   static const size_t W = ac_max_pow2<C-1>::P;
-  ac_bank_array_base<B, W  > a0;
-  ac_bank_array_base<B, C-W> a1;
+  ac_bank_array_base<B, W  , I> a0;
+  ac_bank_array_base<B, C-W, I+W> a1;
   AC &operator[](size_t idx) {
-#ifndef __SYNTHESIS__
-    assert(idx < C);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < C);
     size_t aidx = idx & (W-1);
     return idx&W ? a1[aidx] : a0[aidx];
   }
 
   const AC &operator[](size_t idx) const {
-#ifndef __SYNTHESIS__
-    assert(idx < C);
-#endif
+    AC_A_BANK_ARRAY_ASSERTION(idx < C);
     size_t aidx = idx & (W-1);
     return idx&W ? a1[aidx] : a0[aidx];
   }

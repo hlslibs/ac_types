@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 5.1                                                 *
+ *  Software Version: 2025.4                                              *
  *                                                                        *
- *  Release Date    : Tue May 13 15:28:19 PDT 2025                        *
+ *  Release Date    : Tue Nov 11 17:37:52 PST 2025                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 5.1.1                                               *
+ *  Release Build   : 2025.4.0                                            *
  *                                                                        *
  *  Copyright 2018-2022 Siemens                                                *
  *                                                                        *
@@ -914,10 +914,11 @@ public:
     ac_int<E,false> op1_e_b = ac_int<E,false>(op1_e);
     ac_int<E,false> op2_e_b = ac_int<E,false>(op2_e);
     int e_dif1 = op1_e_b - op2_e_b;
+    int e_dif2 = op2_e_b - op1_e_b;
     bool e1_lt_e2 = (e_dif1 < 0);
     bool e1_eq_e2 = (op1_e_b == op2_e_b);
-    //unsigned e_dif = e1_lt_e2 ? e_dif2 : e_dif1;
-    eu_t e_dif = op1_e_b < op2_e_b ? op2_e_b - op1_e_b : op1_e_b - op2_e_b;
+    eu_t e_dif = e1_lt_e2 ? e_dif2 : e_dif1;
+    // eu_t e_dif = op1_e_b < op2_e_b ? op2_e_b - op1_e_b : op1_e_b - op2_e_b;
 
 
     // find bigger & smaller operands
@@ -1313,7 +1314,7 @@ public:
     op3.extract(op3_mu, op3_e, op3_sign, op3_normal, op3_zero, op3_inf, op3_nan, true, No_SubNormals);
     if(No_SubNormals)
       op3_mu &= mu_t(op3_zero ? 0 : -1);
-    bool mult_sign = (op1_sign ^ op2_sign) | (op1_zero & op2_inf) | (op1_inf & op1_zero);
+    bool mult_sign = (op1_sign ^ op2_sign) | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_nan = op1_nan | op2_nan | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_zero = op1_zero | op2_zero;  // mult_nan has precedence later on
     int mult_exp_b = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
@@ -1333,7 +1334,7 @@ public:
 
     const int extra_lsb = mu_bits -2; // (mu_bits -2) + mu_bits+6 = 2*mu_bits+4
     const int accu_size = No_SubNormals ? mu_bits+6+extra_lsb: 2*mu_bits+4; 
-    AC_ASSERT(!No_SubNormals || (extra_lsb >=-3 && extra_lsb <= mu_bits -2), "The FMA accumulator has invalid size. The value of extra_lsb shoudle be in range {-3, mantissa_width-1}");
+    AC_ASSERT(!No_SubNormals || (extra_lsb >=-3 && extra_lsb <= mu_bits -2), "The FMA accumulator has invalid size. The value of extra_lsb should be in range {-3, mantissa_width-1}");
     typedef ac_int<accu_size,true> add_t;
     add_t op3_m_s = op3_m;
     add_t p_s;
@@ -1377,6 +1378,11 @@ public:
 
     typedef ac_int<ac::nbits<accu_size>::val+!No_SubNormals,!No_SubNormals> shift_l_sat_t;
     shift_l_sat_t shift_l_sat = ac_fixed<ac::nbits<accu_size>::val+!No_SubNormals,ac::nbits<accu_size>::val+!No_SubNormals,!No_SubNormals,AC_TRN,AC_SAT>(shift_l).to_ac_int();
+    // Compute sticky bit for subnormals
+    add_t shifted_out_bits_subnorm = add_r;
+    shifted_out_bits_subnorm &= ~((add_t(-1)) >> ((!No_SubNormals && shift_exponent_limited) ? shift_l_sat : shift_l_sat_t(0))); // if shift_exponent_limited, shift_l_sat is negative so this is left shift
+    sticky_bit |= !!shifted_out_bits_subnorm;
+    
     add_r <<= shift_l_sat;   
     add_r[0] = add_r[0] | sticky_bit;
 
@@ -1385,7 +1391,7 @@ public:
     const int slc_ptr = No_SubNormals ? 4+extra_lsb : mu_bits+2;
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.template slc<mu_bits+1>(slc_ptr);
-    bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & !add_r[accu_size-1] & t == t_h(-1);
+    bool rnd_ovf = (QR != AC_TRN_ZERO) & !add_r[accu_size-1] & t == t_h(-1);
     bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : (r_neg ^ toggle_r_sign) & !add_exact_zero;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
     bool r_zero = !rnd_ovf & !r_rnd_i;

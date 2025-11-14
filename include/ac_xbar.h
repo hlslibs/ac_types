@@ -8,7 +8,7 @@
  *  Release Type    : Production Release                                  *
  *  Release Build   : 2025.4.0                                            *
  *                                                                        *
- *  Copyright 2024 Siemens                                                *
+ *  Copyright  Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -30,44 +30,58 @@
  *  The most recent version of this package is available at github.       *
  *                                                                        *
  *************************************************************************/
+#pragma once
 
-// ac_shared_array_1D.h
-// Stuart Swan, Platform Architect, Siemens EDA
-// 11 April 2024
-//
-// ac_shared_array_1D<> is a 1 dimensional shared array that provides
-// assertion checking on index violations in both the pre-HLS model and in the post-HLS RTL
-//
-// usage:
-//   instead of :
-//       uint16 my_array[0x1000];
-//   use:
-//       ac_shared_array_1D<uint16, 0x1000> my_array;
+#include <ac_int.h>
+#include <ac_channel.h>
+#include <ac_bank_array.h>
 
+#pragma hls_design
+#pragma builtin 
+template<
+         int NUM_IN,
+         int NUM_OUT,
+         typename T,
+         typename ...Args >
+void ac_xbar(ac_int<NUM_IN, false> sel_i[NUM_OUT], ac_channel<T> &chan, Args&...args) {
+  constexpr auto size_args = sizeof...(args);
+  static_assert((NUM_IN+NUM_OUT-1) == size_args, "Unexpected number of arguments");
 
-#ifndef __AC_SHARED_ARRAY_1D_H
-#define __AC_SHARED_ARRAY_1D_H
+  bool available = true;
+#ifndef __SYNTHESIS__
+  auto check_zero_or_one_hot = [&]() -> void {
+    for(int i = 0; i < NUM_OUT; ++i) {
+      const auto &sel = sel_i[i];
+      if(sel & (sel-1)) {
+        std::stringstream ss;
+        ss<<"sel_i["<<i<<"]="<<sel.to_string(AC_HEX, false, true)<<" must be one-hot or zero ";
+        AC_ASSERT(false, ss.str().c_str());
+      }
+    } 
+  };
 
-#include <cstddef>
-#include <ac_assert.h>
-
-#include <ac_shared_proxy.h>
-
-template <typename T, size_t D1>
-class ac_shared_array_1D
-{
-  ac_shared<T [D1]> data;
-public:
-  T &operator[](size_t idx) {
-    AC_A_BANK_ARRAY_ASSERTION(idx < D1);
-    return data[idx];
-  }
-
-  const T &operator[](size_t idx) const {
-    AC_A_BANK_ARRAY_ASSERTION(idx < D1);
-    return data[idx];
-  }
-};
-
+  check_zero_or_one_hot();
+  available = false;     
 #endif
 
+  ac_bank_array_base< ac_channel<T> &, NUM_IN+NUM_OUT> bank { chan, args... };
+  for(int j = 0; j < NUM_IN; ++j) {
+    bool selected = false;
+    for(int k = 0; k < NUM_OUT; ++k) {
+      if(sel_i[k][j]) {
+        selected = true;
+      }
+    }
+
+    if( available || bank[j].available(1) ) {      
+      if(selected) {
+        const T &data = bank[j].read();
+        for(int k = 0; k < NUM_OUT; ++k) {
+          if(sel_i[k][j]) {
+            bank[k+NUM_IN].write(data);
+          }
+        }
+      }      
+    }
+  }
+}
