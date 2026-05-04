@@ -2,9 +2,9 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2002.4       *
+ *  Software Version: 2003.1       *
  *                                                                        *
- *  Release Date    : Thu Dec 11 10:19:28 PST 2025                        *
+ *  Release Date    : Tue Feb 10 18:26:09 PST 2026                        *
  *  Release Type    : Production Release                                  *
  *  Release Build   :        *
  *                                                                        *
@@ -388,6 +388,239 @@ class PP_Param_ac_fixed_Radix (gdb.Parameter):
     def get_show_string(self,svalue):
         svalue = self.value
         return svalue 
+    
+class PP_Print_ac_datatypes(gdb.Command):
+    set_doc = "Print command for AC Datatypes with radix options ('d', 'x' or 't')."
+    show_doc = "Print command for AC Datatypes with radix options ('d', 'x' or 't')."
+    def __init__(self):
+        super().__init__("acprint", gdb.COMMAND_USER, gdb.COMPLETE_EXPRESSION)
+
+    def invoke(self, arg, from_tty):
+        format_ac_int = False
+        format_ac_fixed = False
+        pradix = 'default'
+        args = gdb.string_to_argv(arg)
+        if len(args) == 2:
+            var = gdb.parse_and_eval(args[1])
+            pp = gdb.default_visualizer(var)     
+            class_name = type(pp).__name__ 
+            if args[0][0] == '/':
+                r_val = '' if len(args[0]) != 2 else args[0][1]
+                valid_radix = r_val in ['d','x','t']
+                format_ac_int   = (class_name == "pp_ac_int") and valid_radix
+                format_ac_fixed = (class_name == "pp_ac_fixed") and valid_radix
+                if format_ac_int or format_ac_fixed:
+                    current_ac_int_radix   = gdb.parameter('pp-ac_int-radix') 
+                    current_ac_fixed_radix = gdb.parameter('pp-ac_fixed-radix') 
+                    current_radix = current_ac_int_radix if format_ac_int else current_ac_fixed_radix if format_ac_fixed else 'default'
+                    if current_radix == 'default':
+                        current_radix = gdb.parameter('pp-ac-radix')
+                    
+                    pradix = 'dec' if r_val == 'd' else 'hex' if r_val == 'x' else 'bin' if r_val == 't' else current_radix
+
+        if format_ac_int:
+            gdb.execute(f"set pp-ac_int-radix {pradix}", from_tty=False, to_string=True)
+        if format_ac_fixed:
+            gdb.execute(f"set pp-ac_fixed-radix {pradix}", from_tty=False, to_string=True)
+
+        gdb.execute(f"print {arg}")
+
+        if format_ac_int:
+            gdb.execute(f"set pp-ac_int-radix {current_ac_int_radix}", from_tty=False, to_string=True)
+        if format_ac_fixed:
+            gdb.execute(f"set pp-ac_fixed-radix {current_ac_fixed_radix}", from_tty=False, to_string=True)
+
+import itertools
+
+_displays = {}
+_next_num = itertools.count(1)       
+
+class PP_Display_ac_datatypes(gdb.Command):
+    set_doc = "Display command for AC Datatypes with radix options ('d', 'x' or 't')."
+    show_doc = "Display command for AC Datatypes with radix options ('d', 'x' or 't')."
+    def __init__(self):
+        super().__init__("acdisplay", gdb.COMMAND_USER, gdb.COMPLETE_EXPRESSION)
+
+    def invoke(self, arg, from_tty):
+        arg = arg.strip()
+        if not arg:
+            gdb.write("Usage: acdisplay [/fmt] expression\n", gdb.STDERR)
+            return
+
+        fmt = None
+        if arg.startswith("/"):
+            try:
+                fmt, expr = arg.split(None, 1)
+            except ValueError:
+                gdb.write("Missing expression after /fmt\n", gdb.STDERR)
+                return
+            fmt = "%" + fmt[1:]   # convert "/x" → "%x", "/d" → "%d", etc.
+        else:
+            expr = arg
+
+        num = next(_next_num)
+        _displays[num] = (expr, fmt, True)
+
+        current_ac_int_radix   = gdb.parameter('pp-ac_int-radix') 
+        current_ac_fixed_radix = gdb.parameter('pp-ac_fixed-radix')
+
+        value = gdb.parse_and_eval(expr)
+        pp = gdb.default_visualizer(value)     
+        class_name = type(pp).__name__ 
+        if  class_name in {"pp_ac_int", "pp_ac_fixed"}:
+            if fmt and fmt[1:] in ['d','x','t']:
+                pradix = 'dec' if fmt[1:] == 'd' else 'hex' if fmt[1:] == 'x' else 'bin'
+                tmp = pp.to_string_base(pradix)
+
+                gdb.write(f"{num}: {expr} = {tmp}\n")
+            else:
+                tmp = pp.to_string()
+                gdb.write(f"{num}: {expr} = {tmp}\n")
+        else:
+            if fmt:
+                if fmt == '%t':
+                    gdb.write(f"{num}: {expr} = {bin(value)}\n")
+                else:
+                    gdb.execute(f"printf \"{num}: {expr} = {fmt}\\n\", {value}")
+            else:
+                gdb.write(f"{num}: {expr} = {value}\n")
+
+class PP_Info_display_ac_datatypes(gdb.Command):
+    set_doc = "Info display command for AC Datatypes (acdisplay)."
+    show_doc = "Info display command for AC Datatypes (acdisplay)."
+    def __init__(self):
+        super().__init__("info acdisplay", gdb.COMMAND_STATUS)
+
+    def invoke(self, arg, from_tty):
+        if not _displays:
+            gdb.write("There are no acdisplay expressions.\n")
+            return
+        gdb.write("Num Enb Expression (Format)\n")
+        for num, (expr, fmt, enabled) in sorted(_displays.items()):
+            suffix = f" (/{fmt[1:]})" if fmt else ""
+            en = 'y' if enabled else 'n'
+            gdb.write(f"{num}:   {en}  {expr} {suffix}\n")
+
+class PP_Delete_display_ac_datatypes(gdb.Command):
+    set_doc = "Delete command for AC Datatypes (acdisplay)."
+    show_doc = "Delete command for AC Datatypes (acdisplay)."
+    def __init__(self):
+        super().__init__("delete acdisplay", gdb.COMMAND_DATA)
+
+    def invoke(self, arg, from_tty):
+        if not _displays:
+            gdb.write("No acdisplays to delete.\n")
+            return
+        if arg.strip():
+            argv = arg.split()
+            nums = []
+            for v in argv:
+                ranged_v = v.split('-')
+                if len(ranged_v) == 2:
+                    lower = int(ranged_v[0])
+                    upper = int(ranged_v[1])+1
+                    for n in range(lower, upper):
+                        nums.append(int(n))
+                else:
+                    nums.append(int(v))
+        else:
+            nums = list(_displays)
+        for n in nums:
+            if n in _displays:
+                del _displays[n]
+            else:
+                gdb.write(f"No acdisplay number: {n}\n", gdb.STDERR)
+
+
+class PP_Enable_display_ac_datatypes(gdb.Command):
+    set_doc = "Enable command for AC Datatypes (acdisplay)."
+    show_doc = "Enable command for AC Datatypes (acdisplay)."
+    def __init__(self):
+        super().__init__("enable acdisplay", gdb.COMMAND_DATA)
+
+    def invoke(self, arg, from_tty):
+        if not _displays:
+            gdb.write("No acdisplays to enable.\n")
+            return
+        if arg.strip():
+            argv = arg.split()
+            nums = []
+            for v in argv:
+                ranged_v = v.split('-')
+                if len(ranged_v) == 2:
+                    lower = int(ranged_v[0])
+                    upper = int(ranged_v[1])+1
+                    for n in range(lower, upper):
+                        nums.append(int(n))
+                else:
+                    nums.append(int(v))
+        else:
+            nums = list(_displays)
+        for n in nums:
+            if n in _displays:
+               (ex, f, en) = _displays[n]
+               _displays[n] = (ex, f, True)
+            else:
+                gdb.write(f"No acdisplay number: {n}\n", gdb.STDERR)
+
+class PP_Disable_display_ac_datatypes(gdb.Command):
+    set_doc = "Disable command for AC Datatypes (acdisplay)."
+    show_doc = "Disable command for AC Datatypes (acdisplay)."
+    def __init__(self):
+        super().__init__("disable acdisplay", gdb.COMMAND_DATA)
+
+    def invoke(self, arg, from_tty):
+        if not _displays:
+            gdb.write("No acdisplays to disable.\n")
+            return
+        if arg.strip():
+            argv = arg.split()
+            nums = []
+            for v in argv:
+                ranged_v = v.split('-')
+                if len(ranged_v) == 2:
+                    lower = int(ranged_v[0])
+                    upper = int(ranged_v[1])+1
+                    for n in range(lower, upper):
+                        nums.append(int(n))
+                else:
+                    nums.append(int(v))
+        else:
+            nums = list(_displays)
+        for n in nums:
+            if n in _displays:
+               (ex, f, en) = _displays[n]
+               _displays[n] = (ex, f, False)
+            else:
+                gdb.write(f"No acdisplay number: {n}\n", gdb.STDERR)
+
+def _acdisplay_on_stop(event):
+    # Called *after* GDB stops but *before* the prompt re-appears
+    for num, (expr, fmt, enabled) in sorted(_displays.items()):
+        try:
+            if enabled:
+                value = gdb.parse_and_eval(expr)
+                pp = gdb.default_visualizer(value)     
+                class_name = type(pp).__name__ 
+                if  class_name in {"pp_ac_int", "pp_ac_fixed"}:
+                    if fmt and fmt[1:] in ['d','x','t']:
+                        pradix = 'dec' if fmt[1:] == 'd' else 'hex' if fmt[1:] == 'x' else 'bin'
+                        tmp = pp.to_string_base(pradix)
+
+                        gdb.write(f"{num}: /{fmt[1:]} {expr} = {tmp}\n")
+                    else:
+                        tmp = pp.to_string()
+                        gdb.write(f"{num}: {expr} = {tmp}\n")
+                else:
+                    if fmt:
+                        if fmt == '%t':
+                            gdb.write(f"{num}: /{fmt[1:]} {expr} = {bin(value)}\n")
+                        else:
+                            gdb.execute(f"printf \"{num}: /{fmt[1:]} {expr} = {fmt}\\n\", {value}")
+                    else:
+                        gdb.write(f"{num}: {expr} = {value}\n")
+        except Exception as exc:
+            gdb.write(f"{num}: {expr} -> <error: {exc}>\n", gdb.STDERR)
 
 if __name__ == "__main__":
     ac_pretty_printers_dict = {}
@@ -396,3 +629,10 @@ if __name__ == "__main__":
     PP_Param_ac_Radix()
     PP_Param_ac_int_Radix()
     PP_Param_ac_fixed_Radix()
+    PP_Print_ac_datatypes() 
+    PP_Display_ac_datatypes()
+    PP_Info_display_ac_datatypes()
+    PP_Delete_display_ac_datatypes()
+    PP_Enable_display_ac_datatypes()
+    PP_Disable_display_ac_datatypes()
+    gdb.events.stop.connect(_acdisplay_on_stop)

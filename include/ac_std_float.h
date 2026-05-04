@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2025.4                                              *
+ *  Software Version: 2026.1                                              *
  *                                                                        *
- *  Release Date    : Thu Dec 11 10:19:28 PST 2025                        *
+ *  Release Date    : Tue Feb 10 18:26:09 PST 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2025.4.1                                            *
+ *  Release Build   : 2026.1.0                                            *
  *                                                                        *
  *  Copyright 2018-2022 Siemens                                                *
  *                                                                        *
@@ -1125,7 +1125,7 @@ public:
 
       p_msb_all_one &= p_msb_one | !do_shift_left_1 | guard_bit;
       sticky_bit |= guard_bit & (p_msb_one | !do_shift_left_1);
-      bool rnd_ovf = ((QR == AC_RND_CONV) | (QR == AC_RND_INF)) & p_msb_all_one;
+      bool rnd_ovf = (QR != AC_TRN_ZERO) & p_msb_all_one & ((QR != AC_RND_CONV_ODD) | sticky_bit);
       e_incr |= rnd_ovf; // overflow in rounding, we know r_rnd will be "1000...000" so no need for shift because "1000...000"[msb-1:1] == "1000...000"[msb-2:0]
 
       if (p_msb_one)

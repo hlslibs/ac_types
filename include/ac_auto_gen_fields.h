@@ -32,67 +32,99 @@
  *************************************************************************/
 #pragma once
 
-#include <ac_int.h>
-#include <ac_channel.h>
-#include <ac_bank_array.h>
-
-#pragma hls_design
-#pragma builtin 
-template<int NUM_IN,
-         int NUM_OUT,
-         typename T,
-         typename ...Args >
-void ac_xbar(bool read_unselected_input, ac_int<NUM_IN, false> sel_i[NUM_OUT], ac_channel<T> &chan, Args&...args) {
-  constexpr auto size_args = sizeof...(args);
-  static_assert((NUM_IN+NUM_OUT-1) == size_args, "Unexpected number of arguments");
-
-  bool available = true;
-#ifndef __SYNTHESIS__
-  auto check_zero_or_one_hot = [&]() -> void {
-    for(int i = 0; i < NUM_OUT; ++i) {
-      const auto &sel = sel_i[i];
-      if(sel & (sel-1)) {
-        std::stringstream ss;
-        ss<<"sel_i["<<i<<"]="<<sel.to_string(AC_HEX, false, true)<<" must be one-hot or zero ";
-        AC_ASSERT(false, ss.str().c_str());
-      }
-    } 
-  };
-
-  check_zero_or_one_hot();
-  available = false;     
+#ifdef __clang__
+#ifdef BOOST_PP_VARIADICS
+#ifndef OK_BOOST_PASS
+#error "For clang++ auto_gen_fields.h must be included before any other includes of boost headers"
+#endif
+#endif
+#define BOOST_PP_VARIADICS 1
+#define OK_BOOST_PASS 1
 #endif
 
-  ac_bank_array_base< ac_channel<T> &, NUM_IN+NUM_OUT> bank { chan, args... };
-  for(int j = 0; j < NUM_IN; ++j) {
-    bool selected = false;
-    for(int k = 0; k < NUM_OUT; ++k) {
-      if(sel_i[k][j]) {
-        selected = true;
-      }
-    }
+#include <boost/preprocessor/list/for_each.hpp>
+#include <boost/preprocessor/tuple/to_list.hpp>
+#include <ac_marshaller.h>
 
-    if( available || bank[j].available(1) ) {      
-      if(selected) {
-        const T &data = bank[j].read();
-        for(int k = 0; k < NUM_OUT; ++k) {
-          if(sel_i[k][j]) {
-            bank[k+NUM_IN].write(data);
-          }
-        }
-      } else if(read_unselected_input) {
-        bank[j].read(); 
-      }
+
+template <class T>
+class ac_type_traits {
+public:
+  static constexpr bool is_array{false};
+  static constexpr int  d1{0};
+  using elem_type = T;
+
+  template <bool is_marshalling, unsigned int Size, class S>
+  static void Marshall(ac_marshaller<is_marshalling, Size>& m, S& A) {
+    m & A ;
+  }
+};
+
+template <class T, int D1>
+class ac_type_traits<T[D1]>{
+public:
+  static constexpr bool is_array{true};
+  static constexpr int  d1{D1};
+  using elem_type = T;
+
+  template <bool is_marshalling, unsigned int Size>
+  static void Marshall(ac_marshaller<is_marshalling, Size>& m, elem_type A[d1]) {
+    for (int i=0; i<d1; i++) {
+      m & A [i];
     }
   }
+};
+
+template <class T, int D1, int D2>
+class ac_type_traits<T[D1][D2]> {
+public:
+  static constexpr bool is_array{true};
+  static constexpr int  d1{D1};
+  static constexpr int  d2{D2};
+  using elem_type = T;
+
+  template <bool is_marshalling, unsigned int Size>
+  static void Marshall(ac_marshaller<is_marshalling, Size>& m, elem_type A[d1][d2]) {
+    for (int i1=0; i1<d1; i1++) 
+      for (int i2=0; i2<d2; i2++) 
+        m & A [i1][i2];
+  }
+};
+
+template <class T>
+class ac_calc_bit_width
+{
+public:
+  static constexpr unsigned width = ac_wrapper<T>::width;
+};
+
+template <class T, int D1>
+class ac_calc_bit_width<T[D1]>
+{
+public:
+  static constexpr unsigned width = ac_calc_bit_width<T>::width * D1;
+};
+
+
+#define GEN_MARSHALL_FIELD(R, _, F) \
+   ac_type_traits<decltype(F)>::Marshall(m, rhs.F); 
+   //
+
+#define GEN_MARSHALL_METHOD(FIELDS) \
+template <bool is_marshalling, unsigned int Size> static void Marshall(ac_marshaller<is_marshalling, Size>& m, this_type &rhs) { \
+     BOOST_PP_LIST_FOR_EACH(GEN_MARSHALL_FIELD, _, FIELDS); \
 }
 
-template<int NUM_IN,
-         int NUM_OUT,
-         bool READ_UNSELECTED_INPUT = true,
-         typename T,
-         typename ...Args >
-void ac_xbar(ac_int<NUM_IN, false> sel_i[NUM_OUT], ac_channel<T> &chan, Args&...args) {
-  ac_xbar<NUM_IN, NUM_OUT >(READ_UNSELECTED_INPUT, sel_i, chan, args...);    
-}
-  
+#define GEN_ADD_FIELD_WIDTH(R, _, F) \
+   + ac_calc_bit_width<decltype(F)>::width
+
+#define GEN_WIDTH(FIELDS) \
+  static constexpr int width = 0 \
+       BOOST_PP_LIST_FOR_EACH(GEN_ADD_FIELD_WIDTH, _, FIELDS); 
+
+#define FIELD_LIST(X) BOOST_PP_TUPLE_TO_LIST(BOOST_PP_TUPLE_SIZE(X), X )
+
+#define AUTO_GEN_FIELD_METHODS(THIS_TYPE, X) \
+  using this_type = THIS_TYPE; \
+  GEN_MARSHALL_METHOD(FIELD_LIST(X)) \
+  GEN_WIDTH(FIELD_LIST(X))

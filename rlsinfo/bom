@@ -22,5 +22,8 @@
 ./include/ac_join.h
 ./include/ac_split_join.h
 ./include/ac_xbar.h
+./include/ac_marshaller.h
+./include/ac_auto_gen_fields.h
 ./include/ac_interleave_array.h
 ./include/ac_pack_channels.h
+./include/ac_UIntOrEmpty.h

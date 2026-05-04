@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2025.4                                              *
+ *  Software Version: 2026.1                                              *
  *                                                                        *
- *  Release Date    : Thu Dec 11 10:19:28 PST 2025                        *
+ *  Release Date    : Tue Feb 10 18:26:09 PST 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2025.4.1                                            *
+ *  Release Build   : 2026.1.0                                            *
  *                                                                        *
  *  Copyright  Siemens                                                *
  *                                                                        *
@@ -35,10 +35,7 @@
 #include <iostream>
 #include <ac_int.h>
 #include <ac_channel.h>
-#include <mc_scverify.h>
-#include <connections/marshaller.h>
-#include <auto_gen_fields.h>
-#include <mc_connections.h>
+#include <ac_marshaller.h>
 
 //------------------------------------------------------------------------------
 // some common functions 
@@ -62,26 +59,13 @@ bool ac_join_available(ac_channel<T_IN> ch_i[SIZE]) {
 }
 
 template<typename T, int N>
-inline void type_to_bv(const T& obj, ac_int<N,false>& vec) {
-  vec = to_ac(sc_dt::sc_biguint<N>(Connections::convert_to_lv(obj)));
+inline void type_to_bv(const T& obj, ac_int<N,false>& bv) {
+  bv = ac_bv_conv<T>::type_to_bv(obj);
 }
 
 template<typename T, int N>
-inline void bv_to_type(const ac_int<N,false>& vec, T& obj)
-{
-  using non_ref_T = typename std::remove_reference<T>::type;
-  if constexpr (std::is_same<T, ac_int<N,false> >::value) {
-    obj = vec;
-  } else if constexpr (std::is_same<T, ac_int<N,true> >::value) {
-    obj = vec;
-  } else {
-    obj = Connections::convert_from_lv<non_ref_T>(sc_dt::sc_lv<N>(to_sc(vec)));
-  }
-}
-
-template<typename T, int N>
-inline void type_to_bv(const ac_int<N,false>& obj, ac_int<N,false>& vec) {
-  vec = obj;
+inline void bv_to_type(const ac_int<N,false>& bv, T& obj) {
+  obj = ac_bv_conv<T>::bv_to_type(bv);
 }
 
 //------------------------------------------------------------------------------
@@ -94,7 +78,7 @@ inline void ac_split_check_width() {
 
 template<int EXP_WIDTH, int W1, typename T, typename ...Args>
 inline void ac_split_check_width(const ac_channel<T> &, Args &...args) {
-  return ac_split_check_width<EXP_WIDTH, W1+Wrapped<T>::width> (args...);
+  return ac_split_check_width<EXP_WIDTH, W1+ac_bv_conv<T>::width> (args...);
 }
 
 template <int IN_WIDTH>
@@ -105,7 +89,7 @@ void ac_split(ac_int<IN_WIDTH, false> input_bv) {
 // internal
 template <int IN_WIDTH, typename T_OUT, typename ...Args>
 void ac_split(ac_int<IN_WIDTH, false> input_bv, ac_channel<T_OUT>& ch_o, Args&... args) {
-  constexpr int OUT_WIDTH = Wrapped<T_OUT>::width;
+  constexpr int OUT_WIDTH = ac_bv_conv<T_OUT>::width;
   static_assert(IN_WIDTH >= OUT_WIDTH, "Input width is less output width");
   
   ac_int<OUT_WIDTH, false> curr_out_bv = input_bv.template slc<OUT_WIDTH> (0);
@@ -124,8 +108,8 @@ void ac_split(ac_int<IN_WIDTH, false> input_bv, ac_channel<T_OUT>& ch_o, Args&..
 #pragma builtin ac_split
 template<typename T_IN, typename T_OUT, typename ...Args>
 void ac_split(ac_channel<T_IN>& ch_i, ac_channel<T_OUT>& ch_o, Args&... ch_o_) {
-  constexpr int IN_WIDTH  = Wrapped<T_IN>::width;
-  ac_split_check_width<IN_WIDTH, Wrapped<T_OUT>::width>(ch_o_...);
+  constexpr int IN_WIDTH  = ac_bv_conv<T_IN>::width;
+  ac_split_check_width<IN_WIDTH, ac_bv_conv<T_OUT>::width>(ch_o_...);
   bool always_true = false;
 #ifdef __SYNTHESIS__
   always_true = true;
@@ -140,7 +124,7 @@ void ac_split(ac_channel<T_IN>& ch_i, ac_channel<T_OUT>& ch_o, Args&... ch_o_) {
 
 template<int SIZE, int CURR, int IN_WIDTH, typename T_OUT>
 void ac_split(const ac_int<IN_WIDTH,false> &input_bv, ac_channel<T_OUT> ch_o[SIZE]) {
-  constexpr int OUT_WIDTH = Wrapped<T_OUT>::width;
+  constexpr int OUT_WIDTH = ac_bv_conv<T_OUT>::width;
   ac_int<OUT_WIDTH, false> curr_out_bv = input_bv.template slc<OUT_WIDTH> (0);
   T_OUT oval;
   bv_to_type(curr_out_bv, oval);
@@ -156,8 +140,8 @@ void ac_split(const ac_int<IN_WIDTH,false> &input_bv, ac_channel<T_OUT> ch_o[SIZ
 #pragma builtin ac_split
 template<int SIZE, typename T_IN, typename T_OUT>
 void ac_split(ac_channel<T_IN>& ch_i, ac_channel<T_OUT> ch_o[SIZE]) {
-  constexpr int IN_WIDTH  = Wrapped<T_IN>::width;
-  constexpr int REQ_WIDTH = Wrapped<T_OUT>::width * SIZE;
+  constexpr int IN_WIDTH  = ac_bv_conv<T_IN>::width;
+  constexpr int REQ_WIDTH = ac_bv_conv<T_OUT>::width * SIZE;
   ac_split_check_width<IN_WIDTH, REQ_WIDTH> ();
   bool always_true = false;
 #ifdef __SYNTHESIS__
@@ -181,7 +165,7 @@ inline void ac_join_check_width() {
 
 template<int EXP_WIDTH, int W1, typename T, typename ...Args>
 inline void ac_join_check_width(const ac_channel<T> &, Args &...args) {
-  return ac_join_check_width<EXP_WIDTH, W1+Wrapped<T>::width> (args...);
+  return ac_join_check_width<EXP_WIDTH, W1+ac_bv_conv<T>::width> (args...);
 }
 
 template<int CUR_IDX, int OUT_WIDTH>
@@ -197,7 +181,7 @@ void ac_join(ac_int<OUT_WIDTH, false> &out_bv) {
 
 template<int CUR_IDX, int OUT_WIDTH, typename T_IN, typename ...Args>
 void ac_join(ac_int<OUT_WIDTH, false> &out_bv, ac_channel<T_IN>& ch_i, Args&... args) {  
-  constexpr int CUR_IN_WIDTH = Wrapped<T_IN>::width;
+  constexpr int CUR_IN_WIDTH = ac_bv_conv<T_IN>::width;
   ac_int<CUR_IN_WIDTH, false> input_bv;
   auto read_data = ch_i.read();
   type_to_bv(read_data, input_bv);
@@ -210,8 +194,8 @@ void ac_join(ac_int<OUT_WIDTH, false> &out_bv, ac_channel<T_IN>& ch_i, Args&... 
 #pragma builtin ac_join
 template<typename T_OUT, typename T_IN, typename ...Args>
 void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN>& ch_i, Args&... args) {
-  constexpr int OUT_WIDTH = Wrapped<T_OUT>::width;
-  ac_join_check_width<OUT_WIDTH, Wrapped<T_IN>::width> (args...);
+  constexpr int OUT_WIDTH = ac_bv_conv<T_OUT>::width;
+  ac_join_check_width<OUT_WIDTH, ac_bv_conv<T_IN>::width> (args...);
   bool available = false;
   
 #ifdef __SYNTHESIS__
@@ -229,7 +213,7 @@ void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN>& ch_i, Args&... args) {
 
 template<int SIZE, int ARR_IDX, int CUR_BV_IDX, int OUT_WIDTH, typename T_IN>  
 void ac_join(ac_int<OUT_WIDTH,false> &out_bv, ac_channel<T_IN> ch_i[SIZE]) {
-  constexpr int IN_WIDTH  = Wrapped<T_IN>::width;
+  constexpr int IN_WIDTH  = ac_bv_conv<T_IN>::width;
   ac_int<IN_WIDTH,false> input_bv;
   auto read_data = ch_i[ARR_IDX].read();
   type_to_bv(read_data, input_bv);
@@ -244,8 +228,8 @@ void ac_join(ac_int<OUT_WIDTH,false> &out_bv, ac_channel<T_IN> ch_i[SIZE]) {
 #pragma builtin ac_join
 template<int SIZE, typename T_OUT, typename T_IN>  
 void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN> ch_i[SIZE]) {
-  constexpr int OUT_WIDTH = Wrapped<T_OUT>::width;  
-  constexpr int IN_WIDTH  = Wrapped<T_IN>::width;
+  constexpr int OUT_WIDTH = ac_bv_conv<T_OUT>::width;  
+  constexpr int IN_WIDTH  = ac_bv_conv<T_IN>::width;
   constexpr int REQ_WIDTH = IN_WIDTH * SIZE;
   ac_join_check_width<OUT_WIDTH, REQ_WIDTH> ();
   
