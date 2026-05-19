@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2004-2020 Siemens                                                *
+ *  Copyright 2020 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -171,7 +171,7 @@ private:
 #   define AC_CHANNEL_ASSERT(cond, code) ac_assert_pvt(cond, __FILE__, __LINE__, code)
     static inline void ac_assert_pvt(bool condition, const char *file, int line, const ac_channel_exception::code &code) {
 #     ifndef AC_USER_DEFINED_ASSERT
-        if(!condition) {
+        if (!condition) {
           const ac_exception e(file, line, code, ac_channel_exception::msg(code));
 #        ifdef AC_ASSERT_THROW_EXCEPTION
 #         ifdef AC_ASSERT_THROW_EXCEPTION_AS_CONST_CHAR
@@ -181,7 +181,7 @@ private:
 #         endif
 #        else
           std::cerr << "Assert";
-          if(e.file)
+          if (e.file)
             std::cerr << " in file " << e.file << ":" << e.line;
           std::cerr << " " << e.msg << std::endl;
           assert(0);
@@ -561,7 +561,7 @@ bool nb_read_chan_rdy(ac_channel<T> &chan) { return !chan.empty(); }
 template<typename T, int N>
 bool nb_read_chan_rdy(ac_channel<T> (&chan)[N] ) {
   bool r = true;
-  for(int i=0; i<N; i++)
+  for (int i=0; i<N; i++)
     r &= !chan[i].empty();
   return r;
 }
@@ -573,7 +573,7 @@ bool nb_read_chan_rdy(Args&... args) {
   // only every other arg is a channel (or an array of channels)
   bool rdy[n_args] = { (nb_read_chan_rdy(args))... };
   bool r = true;
-  for(int i=0; i < n_args; i+=2)
+  for (int i=0; i < n_args; i+=2)
     r &= rdy[i];
   return r;
 }
@@ -586,7 +586,7 @@ void nb_read_r(ac_channel<T> &chan, T &var) {
 
 template<typename T, int N>
 void nb_read_r(ac_channel<T> (&chan)[N], T (&var)[N]) {
-  for(int i=0; i<N; i++)
+  for (int i=0; i<N; i++)
     chan[i].nb_read(var[i]);
 }
 
@@ -599,14 +599,14 @@ void nb_read_r(ac_channel<T> &chan, T &var, Args&... args) {
 
 template<typename T, int N, typename ...Args>
 void nb_read_r(ac_channel<T> (&chan)[N], T (&var)[N], Args&... args) {
-  for(int i=0; i<N; i++)
+  for (int i=0; i<N; i++)
     chan[i].nb_read(var[i]);
   nb_read_r(args...);
 }
 
 template<typename ...Args>
 bool nb_read_join(Args&... args) {
-  if(nb_read_chan_rdy(args...)) {
+  if (nb_read_chan_rdy(args...)) {
     nb_read_r(args...);
     return true;
   }

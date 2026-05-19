@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright  Siemens                                                *
+ *  Copyright 2026 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -30,7 +30,9 @@
  *  The most recent version of this package is available at github.       *
  *                                                                        *
  *************************************************************************/
-#pragma once
+
+#ifndef _INCLUDED_AC_SPLIT_JOIN_H_
+#define _INCLUDED_AC_SPLIT_JOIN_H_
 
 #include <iostream>
 #include <ac_int.h>
@@ -114,7 +116,7 @@ void ac_split(ac_channel<T_IN>& ch_i, ac_channel<T_OUT>& ch_o, Args&... ch_o_) {
 #ifdef __SYNTHESIS__
   always_true = true;
 #endif 
-  if(always_true || ch_i.available(1)) {
+  if (always_true || ch_i.available(1)) {
     auto read_data = ch_i.read();
     ac_int<IN_WIDTH,false> input_bv;
     type_to_bv(read_data, input_bv);
@@ -147,7 +149,7 @@ void ac_split(ac_channel<T_IN>& ch_i, ac_channel<T_OUT> ch_o[SIZE]) {
 #ifdef __SYNTHESIS__
   always_true = true;
 #endif
-  if(always_true || ch_i.available(1)) {
+  if (always_true || ch_i.available(1)) {
     auto read_data = ch_i.read();
     ac_int<IN_WIDTH,false> input_bv;
     type_to_bv(read_data, input_bv);
@@ -202,7 +204,7 @@ void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN>& ch_i, Args&... args) {
   available = true;
 #endif
 
-  if(available || ac_join_available(ch_i, args...)) {
+  if (available || ac_join_available(ch_i, args...)) {
     ac_int<OUT_WIDTH,false> out_bv;
     ac_join<0> (out_bv, ch_i, args...);
     T_OUT write_data;
@@ -238,7 +240,7 @@ void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN> ch_i[SIZE]) {
   available = true;
 #endif
 
-  if(available || ac_join_available<SIZE, 0>(ch_i)) {
+  if (available || ac_join_available<SIZE, 0>(ch_i)) {
     ac_int<OUT_WIDTH,false> out_bv;
     ac_join<SIZE, 0, 0> (out_bv, ch_i);
     T_OUT write_data;
@@ -246,3 +248,5 @@ void ac_join(ac_channel<T_OUT>& ch_o, ac_channel<T_IN> ch_i[SIZE]) {
     ch_o.write(write_data);
   }
 }
+#endif
+

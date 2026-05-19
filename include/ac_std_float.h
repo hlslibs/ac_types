@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2018-2022 Siemens                                                *
+ *  Copyright 2022 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -61,21 +61,26 @@ Overview: this header defines three classes
          2) mantissa (significand) with implied bit for normal numbers
          3) E is not restricted to IEEE widths, another class ac_ieee_float does that
 
-    Provides easy way to conver to/from the closest covering ac_float:
+    Provides easy way to convert to/from the closest covering ac_float:
       Constructor from ac_float
         Most two negative exponents of ac_float are not representable: shift
-          significand futher to the right (for now no attempt to round)
+          significand further to the right (for now no attempt to round)
         Most negative mantissa of ac_float (in two's complement) when converted
-          to sign-magnitute requires a right shift (add +1 to exponent)
+          to sign-magnitude requires a right shift (add +1 to exponent)
           If exponent is already max, two alternatives:
             - "saturate" (store most negative number)
             - Store as -Inf  (currently this option not available)
         Exponent is offset
         Mantissa implied bit is removed from normal numbers
 
-      Explicit convertion to_ac_float
+      Explicit conversion to_ac_float
         Ignores exceptions (Inf, NaN)
         Does inverse as above to obtain ac_float
+
+Note: Arithmetic operations (add, sub, mult, div, sqrt, fma) include a template
+    parameter that controls the saturation mode. Using any value other than the
+    default (NonSat) may lead to results that are not compliant with IEEE standards.
+
 */
 
 #ifndef __AC_STD_FLOAT_H
@@ -197,7 +202,7 @@ namespace ac {
     ac_int<W+2,true> R = op1;
     ac_int<W,false> D = op2;
     ac_int<W+2,false> Q = 0;
-    for(int i=W+1; i >= 0; i--) {
+    for (int i=W+1; i >= 0; i--) {
       // take MSB of N, shift it in from right to R
       ac_int<W+2,true> nextR = R - D;
       Q <<= 1;
@@ -238,12 +243,12 @@ namespace ac {
     ac_int<WR+2,false> d = 0;
     ac_int<WR,false> r = 0;
     unsigned int z_shift = ZW-2;
-    for(int i = WR-1; i >= 0; i--) {
+    for (int i = WR-1; i >= 0; i--) {
       r <<= 1;
       mask_d <<= 2;
       d = (~mask_d & (d << 2)) | ((z >> z_shift) & 0x3 );
       ac_int<WR+2,false> t = d - (( ((ac_int<WR+1,false>)r) << 1) | 0x1);
-      if( !t[WR+1] ) {  // since t is unsigned, look at MSB
+      if ( !t[WR+1] ) {  // since t is unsigned, look at MSB
         r |= 0x1;
         d = ~mask_d & t;
       }
@@ -378,7 +383,8 @@ namespace ac {
   inline void copy_bits(const ac_int<64,true> &x, double *f) { copy_bits(x.to_int64(), f); }
 }
 
-enum ac_ieee_float_format { binary16, binary32, binary64, binary128, binary256};
+enum ac_std_float_sat_mode { SatMax, NonSat };
+enum ac_ieee_float_format { binary16, binary32, binary64, binary128, binary256 };
 
 // Forward declarations for ac_ieee_float and bfloat16
 template<ac_ieee_float_format Format>
@@ -401,6 +407,10 @@ namespace ac_private {
     typedef ac::bfloat16 type;
   };
 }
+
+#ifdef AC_STD_FLOAT_OPT
+#include <ac_fpmath_int/ac_std_float_synth.h>
+#endif
 
 template<int W, int E>
 class ac_std_float {
@@ -481,7 +491,7 @@ public:
   ac_std_float<WR,E> convert() const {
     ac_private::check_supported<QR>();
     ac_std_float<WR,E> r;
-    if(W <= WR) {
+    if (W <= WR) {
       r.d = 0;
       r.d.set_slc(WR-W, d);
     } else {
@@ -489,12 +499,18 @@ public:
       const int r_mant_bits = r_t::mant_bits;
       const int r_mu_bits = r_t::mu_bits;
       e_t f_e = d.template slc<E>(mant_bits);
+      bool exception = (f_e == -1);
       bool f_normal = !!f_e;
       mu_t mu = d;
       mu[mant_bits] = f_normal;
       ac_fixed<r_mu_bits+1,mu_bits+1,false,QR> r_rnd = mu;
       bool rnd_ovf = r_rnd[r_mu_bits];
       ac_int<r_mant_bits,false> m_r = r_rnd.template slc<r_mant_bits>(0);
+      rnd_ovf &= !exception;
+      if (exception) {
+        m_r = 0;
+        m_r[r_mant_bits-1] = !!(d.template slc<mant_bits>(0));
+      }
       e_t e_r = f_e + rnd_ovf;
       r.d = m_r;
       r.d.set_slc(r_mant_bits, e_r);
@@ -514,9 +530,9 @@ public:
     mu_t f_mu;
     e_t f_e;
     extract(f_mu, f_e, f_sign, f_normal, f_zero, f_inf, f_nan);
-    if(map_inf & f_inf) {
+    if (map_inf & f_inf) {
       ac_fixed<WFX,IFX,SFX,QFX,OFX> rv;
-      if(f_sign)
+      if (f_sign)
         rv.template set_val<AC_VAL_MIN>();
       else
         rv.template set_val<AC_VAL_MAX>();
@@ -534,14 +550,14 @@ public:
 
     bool sticky_bit_rnd = false;
     bool rshift_neg = rshift < 0;
-    if(need_rem_bits) {
+    if (need_rem_bits) {
       t_t shifted_out_bits = t;
       typedef ac_int< ac::template nbits< AC_MAX(lsb_trg - lsb_src - min_exp,1) >::val, false> shift_ut;
       shifted_out_bits &= ~(t_t(0).bit_complement() << (shift_ut) rshift);
       sticky_bit_rnd = !!shifted_out_bits & !rshift_neg;
     }
     bool ovf = false;
-    if(need_ovf) {
+    if (need_ovf) {
       t_t shifted_out_bits = t < 0 ? t_t(~t) : t;
       // shift right by -rshift + 1
       //   +1 is OK since added extra MSB
@@ -555,7 +571,7 @@ public:
     t[t_width-1] = t[t_width-1] ^ (ovf & (t[t_width-1] ^ f_sign));
     t[t_width-2] = t[t_width-2] ^ (ovf & (t[t_width-2] ^ !f_sign));
     t2_t t2 = t;
-    if(need_rem_bits) {
+    if (need_rem_bits) {
       t2 <<= 1;
       t2[0] = t2[0] | sticky_bit_rnd;
     }
@@ -598,8 +614,8 @@ public:
     extract(f_mu, f_e, f_sign, f_normal, f_zero, f_inf, f_nan);
     int exp = f_e;
     ac_fixed<r_mu_bits+1, mu_bits+1,false,QR> r_rnd;
-    if(ER >= E) {
-      if((ER > E) & !f_normal) {
+    if (ER >= E) {
+      if ((ER > E) & !f_normal) {
         int ls = f_mu.leading_sign();
         int max_shift_left = f_e - r_min_exp + 1;
         bool shift_exponent_limited = ls >= max_shift_left;
@@ -613,7 +629,7 @@ public:
       typedef ac_fixed<r_mu_bits+1,mu_bits,false> t_t;
       t_t r_t = f_mu;
       bool sticky_bit = !!(f_mu & ~((~mu_t(0)) << mant_bits-r_mant_bits-1));
-      if(shift_r > 0) {
+      if (shift_r > 0) {
         t_t shifted_out_bits = r_t;
         shifted_out_bits &= ~((~t_t(0)) << shift_r);
         sticky_bit |= !!shifted_out_bits;
@@ -631,11 +647,11 @@ public:
     bool f_conv_inf = !f_inf & (exp > r_max_exp); // treated differently than f_inf for AC_TRN_ZERO
     bool exception = f_inf | f_nan | ((QR != AC_TRN_ZERO) & f_conv_inf);
     r_e_t r_e = exception ? -1 : (f_zero | !r_normal) ? 0 : ((QR==AC_TRN_ZERO) & f_conv_inf) ? ~1 : exp + r_exp_bias;
-    if(exception) {
+    if (exception) {
       r_m = 0;
       r_m[r_mant_bits-1] = f_nan;
     }
-    if(QR==AC_TRN_ZERO) {
+    if (QR==AC_TRN_ZERO) {
       r_m |= ac_int<1,true>(-f_conv_inf);
     }
     r.d = r_m;
@@ -665,7 +681,7 @@ public:
     bool exp_dont_map = !e | e==-1;
     m >>= !e;
     m >>= 2*(e==-1);
-    // exp_dont_map guarantees subnornal => e = 0
+    // exp_dont_map guarantees subnormal => e = 0
     e &= ac_int<1,true>(!exp_dont_map & !!m);
     d = m.template slc<mant_bits>(0);
     d.set_slc(mant_bits, e);
@@ -683,7 +699,7 @@ public:
     bool r_inf;
     int exp = IFX-SFX-1;
     ac_int<mant_bits,false> m_r;
-    if(max_shift_left >= 0) {
+    if (max_shift_left >= 0) {
       bool all_sign = false;
       unsigned shift_l = ac_private::leading_sign_constrained<max_shift_left>(x,all_sign);
       x_u <<= shift_l;
@@ -691,7 +707,7 @@ public:
       // after shift of abs value, MSB should be 0 with exception of 1 followed by 0s
       bool ovf_most_neg = SFX & x_u[WFX-1];
       bool ovf = ovf_most_neg;
-      if(((Q == AC_RND_CONV) | (Q == AC_RND_INF)) & (WFX-SFX > mu_bits)) {
+      if (((Q == AC_RND_CONV) | (Q == AC_RND_INF)) & (WFX-SFX > mu_bits)) {
         // Check whether rounding would trigger overflow
         mu1_t t = x_u.template slc<mu_bits+1>((WFX-SFX) - mu_bits - 1);
         ovf |= t == mu1_t(-1);
@@ -704,7 +720,7 @@ public:
       bool fx_zero = all_sign & !sign;
       r_inf = (exp > max_exp) & !fx_zero;
       exp += exp_bias;
-      if(Q==AC_TRN_ZERO) {
+      if (Q==AC_TRN_ZERO) {
         exp = r_inf ? max_exp + exp_bias : exp;
         m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
         r_inf = false;
@@ -713,7 +729,7 @@ public:
       bool sticky_bit = false;
       typedef ac_int<mu_bits+2+SFX,false> h_t;
       h_t x_bef_rnd;
-      if(WFX-SFX > mu_bits+2) {
+      if (WFX-SFX > mu_bits+2) {
         sticky_bit = !!(x_u << mu_bits+2);
         x_bef_rnd = x_u >> ((WFX-SFX)-(mu_bits+2));
       } else {
@@ -785,15 +801,15 @@ public:
   const ac_int<W,true> &data_ac_int() const { return d; }
   void set_data(const ac_int<W,true> &data, bool assert_on_nan=false, bool assert_on_inf=false) {
     d = data;
-    if(assert_on_nan)
+    if (assert_on_nan)
       AC_ASSERT(!isnan(), "Float is NaN");
-    if(assert_on_inf)
+    if (assert_on_inf)
       AC_ASSERT(!isinf(), "Float is Inf");
   }
   int fpclassify() const {
     ac_int<E,true> e = d.template slc<E>(mant_bits);
-    if(e) {
-      if(e == -1)
+    if (e) {
+      if (e == -1)
         return !(ac_int<mant_bits,false>)d ? FP_INFINITE : FP_NAN;
       else
         return FP_NORMAL;
@@ -807,16 +823,16 @@ public:
   }
   bool isnormal() const {
     ac_int<E,true> e = d.template slc<E>(mant_bits);
-    return (e | !(ac_int<mant_bits,false>)d) & (e != -1);
+    return ((e != 0) & (e != -1));
   }
   bool isnan() const {
-    if(isfinite())
+    if (isfinite())
       return false;
     ac_int<mant_bits,false> m = d;
     return !!m;
   }
   bool isinf() const {
-    if(isfinite())
+    if (isfinite())
       return false;
     ac_int<mant_bits,false> m = d;
     return !m;
@@ -878,7 +894,7 @@ private:
     bool m_zero = !m.template slc<mant_bits>(0);
     zero = (!e) & (no_subnormals | m_zero);
     m[mant_bits] = !!e;
-    if(!biased_exp) {
+    if (!biased_exp) {
       e -= exp_bias;
       e += !normal;
     }
@@ -898,7 +914,7 @@ public:
     r.d.set_slc(mant_bits, ac_int<E,false>(exp_bias));
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float add_generic(const ac_std_float &op2) const {
     ac_private::check_supported<QR>();
 
@@ -1009,23 +1025,27 @@ public:
 
     ac_int<mant_bits,false> m_r;
     m_r = res_rounded.template slc<mant_bits>(0);
+    bool any_op_inf = op1_inf | op2_inf;
 
-    // special case when AC_TRN_ZERO : infinity is replaced by max value
-    if ((r_inf|exp_max) & (QR==AC_TRN_ZERO)) {
+    // special case when Saturating or AC_TRN_ZERO : infinity is replaced by max value
+    bool r_sat = (Saturate==NonSat) ? ((r_inf|exp_max) & (QR==AC_TRN_ZERO))
+                                    : (r_inf|exp_max|any_op_inf);
+    if (r_sat) {
       exp = max_exp + exp_bias; // saturate res
       r_inf = false;
       m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
+      any_op_inf &= (Saturate!=SatMax);
     }
 
     // compute flags and assign result
     bool r_nan = op1_nan | op2_nan | ((op1_inf & op2_inf) & (op1_sign ^ op2_sign));
-    r_inf |= op1_inf | op2_inf;
+    r_inf |= any_op_inf;
     bool exception = r_nan | r_inf;
     ac_int<E,true> e_r = exp;
-    if(exception | r_zero)
+    if (exception | r_zero)
       e_r = ac_int<E,true>(-1)*exception;
-    exception |= (exp_max & (QR!=AC_TRN_ZERO));
-    if(exception | r_zero)
+    exception |= (exp_max & (QR!=AC_TRN_ZERO) & (Saturate==NonSat));
+    if (exception | r_zero)
       m_r = ac_int<mant_bits,false>(-1)*r_nan;
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
@@ -1034,19 +1054,25 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false>
+  template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float add(const ac_std_float &op2) const {
 #ifndef AC_STD_FLOAT_ADD_OVERRIDE
-    return add_generic<QR,No_SubNormals,Effective_Add>(op2);
+#ifdef AC_STD_FLOAT_OPT
+    ac_std_float r;
+    r.set_data(float_synthlib::add<QR, No_SubNormals, E, W, Effective_Add>(data_ac_int(), op2.data_ac_int()));
+    return r;
+#else
+    return add_generic<QR,No_SubNormals,Effective_Add,Saturate>(op2);
+#endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_ADD_OVERRIDE<QR,No_SubNormals>(*this, op2);
 #endif
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float sub(const ac_std_float &op2) const {
-    return add<QR,No_SubNormals>(-op2);
+    return add<QR,No_SubNormals,false,Saturate>(-op2);
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float mult_generic(const ac_std_float &op2) const {
     ac_private::check_supported<QR>();
     e_t op1_e, op2_e;
@@ -1164,12 +1190,14 @@ public:
 
     bool r_normal = !( (!e_incr & (exp == 0)) | (exp < 0) );
     r_inf |= (exp_ovf & (QR!=AC_TRN_ZERO));
-    bool zero_m = r_zero
-               | (No_SubNormals & !r_normal);
+    bool zero_m = r_zero | (No_SubNormals & !r_normal);
+    bool r_sat = (Saturate!=NonSat) & (r_inf | exp_ovf);
+    r_inf &= (Saturate!=SatMax); // if Saturate, infinity or overflow are not possible
+    exp_ovf &= (Saturate==NonSat);
 
     if (r_nan | r_inf)
       exp = max_exp + exp_bias + 1;
-    else if (exp_ovf & (QR==AC_TRN_ZERO))
+    else if ((exp_ovf & (QR==AC_TRN_ZERO)) | r_sat)
       exp = max_exp + exp_bias; // saturate res
     else if (zero_m)
       exp = 0;
@@ -1181,7 +1209,7 @@ public:
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
-    else if (exp_ovf & (QR==AC_TRN_ZERO))
+    else if ((exp_ovf & (QR==AC_TRN_ZERO)) | r_sat)
       m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1)
     ac_int<E,true> e_r = exp;
     ac_int<W,true> d_r = m_r;
@@ -1191,15 +1219,21 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float mult(const ac_std_float &op2) const {
 #ifndef AC_STD_FLOAT_MULT_OVERRIDE
-    return mult_generic<QR,No_SubNormals>(op2);
+#ifdef AC_STD_FLOAT_OPT
+    ac_std_float r;
+    r.set_data(float_synthlib::mult<QR, No_SubNormals, E, W>(data_ac_int(), op2.data_ac_int()));
+    return r;
+#else
+    return mult_generic<QR,No_SubNormals,Saturate>(op2);
+#endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_MULT_OVERRIDE<QR,No_SubNormals>(*this, op2);
 #endif
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float div_generic(const ac_std_float &op2) const {
     ac_private::check_supported<QR>();
     e_t op1_e, op2_e;
@@ -1234,7 +1268,7 @@ public:
 #ifdef __SYNTHESIS__
     div_by_zero = false;
 #endif
-    if(!div_by_zero) {
+    if (!div_by_zero) {
       AC_STD_FLOAT_FX_DIV_OVERRIDE(op1_mu, op2_mu, q0, exact);
     }
     ac_int<mu_bits+3,false> q = q0;
@@ -1276,14 +1310,22 @@ public:
     exp -= shift_l;
     bool r_inf0 = op1_inf | op2_zero;  // this is not affected by rounding
     bool r_inf = ((!r_zero) & ((exp > max_exp + exp_bias + 1) | (exp == max_exp + exp_bias + 1))) | r_inf0;
-    if((QR==AC_TRN_ZERO) & !r_inf0) {
+    if (Saturate==NonSat) {
+      if ((QR==AC_TRN_ZERO) & !r_inf0) {
+        exp = r_inf ? max_exp + exp_bias : exp;
+        m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
+        r_inf = false;
+      }
+    } else { // Saturate
       exp = r_inf ? max_exp + exp_bias : exp;
       m_r |= ac_int<1,true>(-r_inf);  // saturate (set all bits to 1) if r_inf
+      r_normal |= r_inf;
+      r_zero &= !r_inf;
       r_inf = false;
     }
     bool exception = r_nan | r_inf;
     ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
-    if(exception | r_zero) {
+    if (exception | r_zero) {
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
@@ -1294,15 +1336,21 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float div(const ac_std_float &op2) const {
 #ifndef AC_STD_FLOAT_DIV_OVERRIDE
-    return div_generic<QR,No_SubNormals>(op2);
+#ifdef AC_STD_FLOAT_OPT
+    ac_std_float r;
+    r.set_data(float_synthlib::div<QR, No_SubNormals, E, W>(data_ac_int(), op2.data_ac_int()));
+    return r;
+#else
+    return div_generic<QR,No_SubNormals,Saturate>(op2);
+#endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_DIV_OVERRIDE<QR,No_SubNormals>(*this, op2);
 #endif
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float fma_generic(const ac_std_float &op2, const ac_std_float &op3) const {
     ac_private::check_supported<QR>();
     e_t op1_e, op2_e, op3_e;
@@ -1312,14 +1360,14 @@ public:
     extract(op1_mu, op1_e, op1_sign, op1_normal, op1_zero, op1_inf, op1_nan, true, No_SubNormals);
     op2.extract(op2_mu, op2_e, op2_sign, op2_normal, op2_zero, op2_inf, op2_nan, true, No_SubNormals);
     op3.extract(op3_mu, op3_e, op3_sign, op3_normal, op3_zero, op3_inf, op3_nan, true, No_SubNormals);
-    if(No_SubNormals)
+    if (No_SubNormals)
       op3_mu &= mu_t(op3_zero ? 0 : -1);
     bool mult_sign = (op1_sign ^ op2_sign) | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_nan = op1_nan | op2_nan | (op1_zero & op2_inf) | (op1_inf & op2_zero);
     bool mult_zero = op1_zero | op2_zero;  // mult_nan has precedence later on
     int mult_exp_b = ac_int<E,false>(op1_e) + ac_int<E,false>(op2_e) + !op1_normal + !op2_normal - exp_bias;
     ac_int<2*mu_bits,false> p = op1_mu * op2_mu;
-    if(No_SubNormals)
+    if (No_SubNormals)
       p &= ac_int<2*mu_bits,false>(mult_zero ? 0 : -1);
     bool mult_inf = op1_inf | op2_inf;
 
@@ -1391,7 +1439,7 @@ public:
     const int slc_ptr = No_SubNormals ? 4+extra_lsb : mu_bits+2;
     typedef ac_int<mu_bits+1,false> t_h;
     t_h t = add_r.template slc<mu_bits+1>(slc_ptr);
-    bool rnd_ovf = (QR != AC_TRN_ZERO) & !add_r[accu_size-1] & t == t_h(-1);
+    bool rnd_ovf = (QR != AC_TRN_ZERO) & !add_r[accu_size-1] & (t == t_h(-1));
     bool r_sign = op3_inf ? op3_sign : mult_inf ? mult_sign : (r_neg ^ toggle_r_sign) & !add_exact_zero;
     ac_int<mu_bits+1,true> r_rnd_i = r_rnd.template slc<mu_bits+1>(0);
     bool r_zero = !rnd_ovf & !r_rnd_i;
@@ -1404,16 +1452,23 @@ public:
     ac_int<mant_bits,false> m_r = r_un.template slc<mant_bits>(0);
     exp = (shift_exponent_limited ? min_exp + exp_bias : exp - ls) + shift_r;
     bool r_inf = (exp > max_exp + exp_bias);
-    if((QR==AC_TRN_ZERO) & (r_inf)) {
+    if ((QR==AC_TRN_ZERO) & (r_inf) & (Saturate==NonSat)) {
       exp = max_exp + exp_bias;
       m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1) if r_inf
       r_inf = false;
     }
     bool r_nan = op3_nan | mult_nan | ((op3_inf & mult_inf) & (op3_sign ^ mult_sign));
     r_inf |= mult_inf | op3_inf;
+    if ((Saturate==SatMax) & r_inf){
+      exp = max_exp + exp_bias;
+      m_r |= ac_int<1,true>(-1);  // saturate (set all bits to 1) if r_inf
+      r_inf = false;
+      r_normal = true;
+      r_zero = false;
+    }
     bool exception = r_nan | r_inf;
     ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
-    if(exception | r_zero) {
+    if (exception | r_zero) {
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
     }
@@ -1426,15 +1481,15 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float fma(const ac_std_float &op2, const ac_std_float &op3) const {
 #ifndef AC_STD_FLOAT_FMA_OVERRIDE
-    return fma_generic<QR,No_SubNormals>(op2,op3);
+    return fma_generic<QR,No_SubNormals,Saturate>(op2,op3);
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_FMA_OVERRIDE<QR,No_SubNormals>(*this,op2,op3);
 #endif
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float sqrt_generic() const {
     ac_private::check_supported<QR>();
     const bool rnd = QR != AC_TRN_ZERO;   // need msb(rounded bits)
@@ -1448,7 +1503,7 @@ public:
     op1_mu <<= ls_op1;
     op1_mu[mu_bits-1] = true;  // Since it is normalized, zero is captured by op1_zero
 
-    bool exp_odd = (op1_e  ^ !op1_normal ^ ls_op1 ^ exp_bias) & 1;
+    bool exp_odd = (op1_e ^ !op1_normal ^ ls_op1 ^ exp_bias) & 1;
 
     int exp = ac_int<E,false>(op1_e) + !op1_normal - ls_op1 - exp_bias;
     exp >>= 1;   // divide by 2, truncate towards -inf
@@ -1458,10 +1513,10 @@ public:
     ac_int<mu_bits+rnd,false> sq_rt;
     bool sticky_bit = ac::fx_sqrt(op1_mi, sq_rt);
     bool r_normal = true;  // true for most practical cases on W,E
-    if(mant_bits > -min_exp) {
+    if (mant_bits > -min_exp) {
       int exp_over = min_exp - exp;
-      if(exp_over > 0) {
-        if(rbits) {
+      if (exp_over > 0) {
+        if (rbits) {
           typedef ac_int<mu_bits+rnd,false> t_t;
           t_t shifted_out_bits = sq_rt;
           shifted_out_bits &= ~((~t_t(0)) << exp_over);
@@ -1474,7 +1529,7 @@ public:
     }
     // rounding should not trigger overflow (unless truncate towards +inf which is currently not supported)
     ac_fixed<mu_bits+rnd+rbits,1,false> sq_rt_rnd = 0;
-    if(rbits)
+    if (rbits)
       sq_rt_rnd[0] = sq_rt_rnd[0] | sticky_bit;
     sq_rt_rnd.set_slc(rbits, sq_rt);
     ac_fixed<mu_bits,1,false,QR> sq_rt_fx = sq_rt_rnd;
@@ -1483,14 +1538,18 @@ public:
     bool r_nan = op1_nan | (op1_sign & !op1_zero);
     bool r_zero = op1_zero;
     r_zero |= !r_normal & No_SubNormals;
-    bool r_inf = op1_inf;
+    bool r_inf = op1_inf & (Saturate!=SatMax);
     bool exception = r_nan | r_inf;
     exp += exp_bias;
     ac_int<E,true> e_r = exception ? -1 : (r_zero | !r_normal) ? 0 : exp;
-    if(exception | r_zero) {
+    if (exception | r_zero) {
       m_r = 0;
       m_r[mant_bits-1] = r_nan;
+    } else if (op1_inf & (Saturate==SatMax)) {
+      e_r = max_exp + exp_bias;
+      m_r |= ac_int<1,true>(-1); // saturate (set all bits to 1)
     }
+    
     ac_int<W,true> d_r = m_r;
     d_r.set_slc(mant_bits, e_r);
     d_r[W-1] = op1_sign;
@@ -1498,10 +1557,16 @@ public:
     r.set_data(d_r);
     return r;
   }
-  template<ac_q_mode QR, bool No_SubNormals>
+  template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float sqrt() const {
 #ifndef AC_STD_FLOAT_SQRT_OVERRIDE
-    return sqrt_generic<QR,No_SubNormals>();
+#ifdef AC_STD_FLOAT_OPT
+    ac_std_float r;
+    r.set_data(float_synthlib::sqrt<QR, No_SubNormals, E, W>(data_ac_int()));
+    return r;
+#else
+    return sqrt_generic<QR,No_SubNormals,Saturate>();
+#endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_SQRT_OVERRIDE<QR,No_SubNormals>(*this);
 #endif
@@ -1593,21 +1658,21 @@ public:
   ac_std_float ceil() const {
     ac_int<E,false> e = d.template slc<E>(mant_bits);
     bool sign = d[W-1];
-    if(!d.template slc<W-1>(0))
+    if (!d.template slc<W-1>(0))
       return *this;
-    if(e < exp_bias) {
+    if (e < exp_bias) {
       return sign ? zero() : one();
     } else {
       ac_std_float r(*this);
       int e_dif = mant_bits + exp_bias - e;
-      if((e_dif < 0) | (e == ac_int<E,false>(-1)))
+      if ((e_dif < 0) | (e == ac_int<E,false>(-1)))
         return r;
       else {
         typedef ac_int<mant_bits,false> mant_t;
         mant_t m = d;
         mant_t mask = (~mant_t(0)) << e_dif;
         bool non_zero_fractional = !!(m & ~mask);
-        if(!sign) {
+        if (!sign) {
           m |= ~mask;
           mu_t mu = m + mant_t(non_zero_fractional);
           e += mu[mant_bits];
@@ -1623,21 +1688,21 @@ public:
   ac_std_float floor() const {
     ac_int<E,false> e = d.template slc<E>(mant_bits);
     bool sign = d[W-1];
-    if(!d.template slc<W-1>(0))
+    if (!d.template slc<W-1>(0))
       return *this;
-    if(e < exp_bias) {
+    if (e < exp_bias) {
       return sign ? -one() : zero();
     } else {
       ac_std_float r(*this);
       int e_dif = mant_bits + exp_bias - e;
-      if((e_dif < 0) | (e == ac_int<E,false>(-1)))
+      if ((e_dif < 0) | (e == ac_int<E,false>(-1)))
         return r;
       else {
         typedef ac_int<mant_bits,false> mant_t;
         mant_t m = d;
         mant_t mask = (~mant_t(0)) << e_dif;
         bool non_zero_fractional = !!(m & ~mask);
-        if(sign) {
+        if (sign) {
           m |= ~mask;
           mu_t mu = m + mant_t(non_zero_fractional);
           e += mu[mant_bits];
@@ -1652,12 +1717,12 @@ public:
   }
   ac_std_float trunc() const {
     ac_int<E,false> e = d.template slc<E>(mant_bits);
-    if(e < exp_bias) {
+    if (e < exp_bias) {
       return zero();
     } else {
       ac_std_float r(*this);
       int e_dif = mant_bits + exp_bias - e;
-      if((e_dif < 0) | (e == ac_int<E,false>(-1)))
+      if ((e_dif < 0) | (e == ac_int<E,false>(-1)))
         return r;
       else {
         typedef ac_int<mant_bits,false> mant_t;
@@ -1671,12 +1736,12 @@ public:
   }
   ac_std_float round() const {
     ac_int<E,false> e = d.template slc<E>(mant_bits);
-    if(e < exp_bias-1) {
+    if (e < exp_bias-1) {
       return zero();
     } else {
       ac_std_float r(*this);
       int e_dif = mant_bits + exp_bias -1 - e;
-      if((e_dif < 0) | (e == ac_int<E,false>(-1)))
+      if ((e_dif < 0) | (e == ac_int<E,false>(-1)))
         return r;
       else {
         typedef ac_int<mant_bits,false> mant_t;
@@ -1704,9 +1769,9 @@ inline std::ostream& operator << (std::ostream &os, const ac_std_float<W,E> &x) 
   } else if ((os.flags() & std::ios::oct) != 0) {
     os << x.data().to_string(AC_OCT,false,true);
   } else {
-    if((W <= 32) & (E <= 8)) {
+    if ((W <= 32) & (E <= 8)) {
       os << x.to_float();
-    } else if((W <= 64) & (E <= 11)) {
+    } else if ((W <= 64) & (E <= 11)) {
       os << x.to_double();
     } else {
       // operator << for decimal not yet implemented for ac_std_float with W > 64 or E > 11
@@ -2521,7 +2586,7 @@ public:
   const data_t &data() const { return d; }
   ac_int<16,true> data_ac_int() const { return ac_int<16,true>(d); }
 
-  // mirroed most constructors in tensorflow implementation (except template version)
+  // mirrored most constructors in tensorflow implementation (except template version)
   //   tensorflow uses static_cast<float>
   //   this implementation goes through ac_std_float so there is no dependency on rounding mode
 //  template <class T>
@@ -2720,7 +2785,7 @@ inline bool isinf(const ac_ieee_float<Format> &x) { return x.isinf(); }
 template<ac_ieee_float_format Format>
 inline bool isnan(const ac_ieee_float<Format> &x) { return x.isnan(); }
 
-// Don't do "long double" versions since they are 80-bits, it is an extended presicion
+// Don't do "long double" versions since they are 80-bits, it is an extended precision
 // TODO: fmod, fmodf, fmodl
 // TODO: fmod, remainder, remquo, fma, fmax, fmin, fdim
 // remainder(x,y),  x - n*y, where n = x/y rounded to the nearest integer (RND_CONV)
@@ -2732,7 +2797,7 @@ inline bool isnan(const ac_ieee_float<Format> &x) { return x.isnan(); }
 //   ceil(x), floor(x), trunc(x)
 //   round(x) : RND_INF
 //   nearbyint: depends on rounding mode
-//   rint, same as nearbyint, but may raise inexaxt exception (FE_INEXACT)
+//   rint, same as nearbyint, but may raise inexact exception (FE_INEXACT)
 // TODO: frexp, ldexp, modf, nextafter, nexttoward, copysign
 // modf(x, *iptr), modff   break into integral (*iptr) and fractional (returned) values,
 // Don't cause exception: isgreater, isgreaterequal, isless, islessequal, islessgreater, isunordered

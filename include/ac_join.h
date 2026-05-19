@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright  Siemens                                                *
+ *  Copyright 2026 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -30,5 +30,11 @@
  *  The most recent version of this package is available at github.       *
  *                                                                        *
  *************************************************************************/
-#pragma once
+
+#ifndef _INCLUDED_AC_JOIN_H_
+#define _INCLUDED_AC_JOIN_H_
+
 #include <ac_split_join.h>
+
+#endif
+

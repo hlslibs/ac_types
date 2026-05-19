@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2004-2019 Siemens                                                *
+ *  Copyright 2019 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -57,7 +57,7 @@ ac_int<W, true> to_ac(const sc_dt::sc_bigint<W> &val){
 #ifdef __SYNTHESIS__
 #pragma hls_unroll y
 #endif
-  for(int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
     v >>= 32;
   }
@@ -72,7 +72,7 @@ ac_int<W, false> to_ac(const sc_dt::sc_biguint<W> &val){
 #ifdef __SYNTHESIS__
 #pragma hls_unroll y
 #endif
-  for(int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++) {
     r.set_slc(i*32, ac_int<32,true>(v.to_int()));
     v >>= 32;
   }
@@ -87,7 +87,7 @@ sc_dt::sc_bigint<W> to_sc(const ac_int<W,true> &val) {
 #ifdef __SYNTHESIS__
 #pragma hls_unroll y
 #endif
-  for(int i = N-1; i >= 0; i--) {
+  for (int i = N-1; i >= 0; i--) {
     r <<= 32;
     r.range(31, 0) = (v.template slc<32>(i*32)).to_int();
   }
@@ -102,7 +102,7 @@ sc_dt::sc_biguint<W> to_sc(const ac_int<W,false> &val) {
 #ifdef __SYNTHESIS__
 #pragma hls_unroll y
 #endif
-  for(int i = N-1; i >= 0; i--) {
+  for (int i = N-1; i >= 0; i--) {
     r <<= 32;
     r.range(31, 0) = (v.template slc<32>(i*32)).to_int();
   }
@@ -156,16 +156,16 @@ sc_dt::sc_ufixed<W,I> to_sc(const ac_fixed<W,I,false,Q,O> &val) {
 template<ac_special_val V, int W>
 inline sc_dt::sc_int<W> value(sc_dt::sc_int<W>) {
   sc_dt::sc_int<W> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_MIN)
+    if (V == AC_VAL_MIN)
       r[W-1] = 1;
-    else if(V == AC_VAL_QUANTUM)
+    else if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX) {
+  } else if (AC_VAL_MAX) {
     r = -1;
     r[W-1] = 0;
   }
@@ -175,14 +175,14 @@ inline sc_dt::sc_int<W> value(sc_dt::sc_int<W>) {
 template<ac_special_val V, int W>
 inline sc_dt::sc_uint<W> value(sc_dt::sc_uint<W>) {
   sc_dt::sc_uint<W> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_QUANTUM)
+    if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX)
+  } else if (AC_VAL_MAX)
     r = -1;
   return r;
 }
@@ -190,16 +190,16 @@ inline sc_dt::sc_uint<W> value(sc_dt::sc_uint<W>) {
 template<ac_special_val V, int W>
 inline sc_dt::sc_bigint<W> value(sc_dt::sc_bigint<W>) {
   sc_dt::sc_bigint<W> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_MIN)
+    if (V == AC_VAL_MIN)
       r[W-1] = 1;
-    else if(V == AC_VAL_QUANTUM)
+    else if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX) {
+  } else if (AC_VAL_MAX) {
     r = -1;
     r[W-1] = 0;
   }
@@ -209,14 +209,14 @@ inline sc_dt::sc_bigint<W> value(sc_dt::sc_bigint<W>) {
 template<ac_special_val V, int W>
 inline sc_dt::sc_biguint<W> value(sc_dt::sc_biguint<W>) {
   sc_dt::sc_biguint<W> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_QUANTUM)
+    if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX)
+  } else if (AC_VAL_MAX)
     r = -1;
   return r;
 }
@@ -225,16 +225,16 @@ inline sc_dt::sc_biguint<W> value(sc_dt::sc_biguint<W>) {
 template<ac_special_val V, int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
 inline sc_dt::sc_fixed<W,I,Q,O,nbits> value(sc_dt::sc_fixed<W,I,Q,O,nbits>) {
   sc_dt::sc_fixed<W,I> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_MIN)
+    if (V == AC_VAL_MIN)
       r[W-1] = 1;
-    else if(V == AC_VAL_QUANTUM)
+    else if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX) {
+  } else if (AC_VAL_MAX) {
     r = ~ (sc_dt::sc_fixed<W,I>) 0;
     r[W-1] = 0;
   }
@@ -244,14 +244,14 @@ inline sc_dt::sc_fixed<W,I,Q,O,nbits> value(sc_dt::sc_fixed<W,I,Q,O,nbits>) {
 template<ac_special_val V, int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
 inline sc_dt::sc_ufixed<W,I,Q,O,nbits> value(sc_dt::sc_ufixed<W,I,Q,O,nbits>) {
   sc_dt::sc_ufixed<W,I> r;
-  if(V == AC_VAL_DC) {
+  if (V == AC_VAL_DC) {
     int t;
     r = t;
-  } else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+  } else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
     r = 0;
-    if(V == AC_VAL_QUANTUM)
+    if (V == AC_VAL_QUANTUM)
       r[0] = 1;
-  } else if(AC_VAL_MAX)
+  } else if (AC_VAL_MAX)
     r = ~ (sc_dt::sc_ufixed<W,I>) 0;
   return r;
 }
@@ -264,28 +264,28 @@ namespace ac {
   template<ac_special_val V, int W>
   inline bool init_array(sc_dt::sc_int<W> *a, int n) {
     sc_dt::sc_int<W> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }
   template<ac_special_val V, int W>
   inline bool init_array(sc_dt::sc_uint<W> *a, int n) {
     sc_dt::sc_uint<W> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }
   template<ac_special_val V, int W>
   inline bool init_array(sc_dt::sc_bigint<W> *a, int n) {
     sc_dt::sc_bigint<W> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }
   template<ac_special_val V, int W>
   inline bool init_array(sc_dt::sc_biguint<W> *a, int n) {
     sc_dt::sc_biguint<W> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }
@@ -293,14 +293,14 @@ namespace ac {
   template<ac_special_val V, int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
   inline bool init_array(sc_dt::sc_fixed<W,I,Q,O,nbits> *a, int n) {
     sc_dt::sc_fixed<W,I> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }
   template<ac_special_val V, int W, int I, sc_dt::sc_q_mode Q, sc_dt::sc_o_mode O, int nbits>
   inline bool init_array(sc_dt::sc_ufixed<W,I,Q,O,nbits> *a, int n) {
     sc_dt::sc_ufixed<W,I> t = value<V>(*a);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }

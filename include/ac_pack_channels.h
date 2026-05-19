@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
  *  Copyright 2025 Siemens                                                *
  *                                                                        *
@@ -76,8 +76,8 @@ namespace ac {
       // Check if all channels have data available
       inline bool all_available(unsigned int k = 1) {
         #pragma hls_unroll yes
-        for(size_t i = 0; i < size; i++) {
-          if(!chan[i].available(k)) return false;
+        for (size_t i = 0; i < size; i++) {
+          if (!chan[i].available(k)) return false;
         }
         return true;
       }
@@ -85,8 +85,8 @@ namespace ac {
       // Check if any channel has data available
       inline bool any_available(unsigned int k = 1) {
         #pragma hls_unroll yes
-        for(size_t i = 0; i < size; i++) {
-          if(chan[i].available(k)) return true;
+        for (size_t i = 0; i < size; i++) {
+          if (chan[i].available(k)) return true;
         }
         return false;
       }
@@ -94,7 +94,7 @@ namespace ac {
       // Read from all channels into array
       inline void read_all(base (&data)[size]) {
         #pragma hls_unroll yes
-        for(size_t i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
           data[i] = chan[i].read();
         }
       }
@@ -102,7 +102,7 @@ namespace ac {
       // Write data from array to each channel
       inline void write_all(const base (&data)[size]) {
         #pragma hls_unroll yes
-        for(size_t i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
           chan[i].write(data[i]);
         }
       }
@@ -110,7 +110,7 @@ namespace ac {
       // Transfer data between packed channels
       inline void transfer(ac_pack_channels& dst) {
         #pragma hls_unroll yes
-        for(size_t i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
           dst[i].write(chan[i].read());
         }
       }

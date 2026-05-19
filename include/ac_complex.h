@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2008-2021 Siemens                                                *
+ *  Copyright 2021 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -445,7 +445,7 @@ namespace ac {
   inline bool init_array(ac_complex<T> *a, int n) {
     T val = value<V>((T) 0);
     ac_complex<T> t(val, val);
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }

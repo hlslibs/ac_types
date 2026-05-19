@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright  Siemens                                                *
+ *  Copyright 2026 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -30,7 +30,9 @@
  *  The most recent version of this package is available at github.       *
  *                                                                        *
  *************************************************************************/
-#pragma once
+
+#ifndef _INCLUDED_AC_XBAR_H_
+#define _INCLUDED_AC_XBAR_H_
 
 #include <ac_int.h>
 #include <ac_channel.h>
@@ -49,9 +51,9 @@ void ac_xbar(bool read_unselected_input, ac_int<NUM_IN, false> sel_i[NUM_OUT], a
   bool available = true;
 #ifndef __SYNTHESIS__
   auto check_zero_or_one_hot = [&]() -> void {
-    for(int i = 0; i < NUM_OUT; ++i) {
+    for (int i = 0; i < NUM_OUT; ++i) {
       const auto &sel = sel_i[i];
-      if(sel & (sel-1)) {
+      if (sel & (sel-1)) {
         std::stringstream ss;
         ss<<"sel_i["<<i<<"]="<<sel.to_string(AC_HEX, false, true)<<" must be one-hot or zero ";
         AC_ASSERT(false, ss.str().c_str());
@@ -64,23 +66,23 @@ void ac_xbar(bool read_unselected_input, ac_int<NUM_IN, false> sel_i[NUM_OUT], a
 #endif
 
   ac_bank_array_base< ac_channel<T> &, NUM_IN+NUM_OUT> bank { chan, args... };
-  for(int j = 0; j < NUM_IN; ++j) {
+  for (int j = 0; j < NUM_IN; ++j) {
     bool selected = false;
-    for(int k = 0; k < NUM_OUT; ++k) {
-      if(sel_i[k][j]) {
+    for (int k = 0; k < NUM_OUT; ++k) {
+      if (sel_i[k][j]) {
         selected = true;
       }
     }
 
-    if( available || bank[j].available(1) ) {      
-      if(selected) {
+    if ( available || bank[j].available(1) ) {      
+      if (selected) {
         const T &data = bank[j].read();
-        for(int k = 0; k < NUM_OUT; ++k) {
-          if(sel_i[k][j]) {
+        for (int k = 0; k < NUM_OUT; ++k) {
+          if (sel_i[k][j]) {
             bank[k+NUM_IN].write(data);
           }
         }
-      } else if(read_unselected_input) {
+      } else if (read_unselected_input) {
         bank[j].read(); 
       }
     }
@@ -95,4 +97,6 @@ template<int NUM_IN,
 void ac_xbar(ac_int<NUM_IN, false> sel_i[NUM_OUT], ac_channel<T> &chan, Args&...args) {
   ac_xbar<NUM_IN, NUM_OUT >(READ_UNSELECTED_INPUT, sel_i, chan, args...);    
 }
-  
+
+#endif
+

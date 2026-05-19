@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
  *  Copyright 2024 Siemens                                                *
  *                                                                        *
@@ -47,7 +47,6 @@
 // To enable synthesizable assertions for out-of-bounds checks, compile -DAC_BANK_ARRAY_ASSERT.
 // To enable plain C++ assertions (not synthesized into the RTL) no additional flags required.
 // To disable all asserts (S/W and H/W), compile -DAC_BANK_ARRAY_ASSERT_NOOP.
-
 
 #ifndef __AC_ARRAY_1D_H
 #define __AC_ARRAY_1D_H

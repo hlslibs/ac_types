@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2013-2021 Siemens                                                *
+ *  Copyright 2021 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -125,7 +125,7 @@ public:
   exp_t e;
 
   void set_mantissa(const ac_fixed<W,I,S> &man) { m = man; }
-  void set_exp(const ac_int<E,true> &exp) { if(E) e = exp; }
+  void set_exp(const ac_int<E,true> &exp) { if (E) e = exp; }
 
 private:
   inline bool is_neg() const { return m < 0; }   // is_neg would be more efficient
@@ -273,7 +273,7 @@ private:
     const bool rnd = Q!=AC_TRN && Q!=AC_TRN_ZERO && W2 > W;
     bool rnd_ovfl = false;
     m = 0;
-    if(rnd) {
+    if (rnd) {
       ac_fixed<W+1,I+1,true,Q> m_1 = op2;
       // overflow because of rounding would lead to go from 001111  to 01000 (extra bit prevents it)
       //   change from 01000 to 00100 and store 0100 in m
@@ -281,7 +281,7 @@ private:
       m_1[W-1] = m_1[W-1] & !rnd_ovfl;
       m_1[W-2] = m_1[W-2] | rnd_ovfl;
       m.set_slc(0, m_1.template slc<W>(0));
-      if(assert_on_rounding)
+      if (assert_on_rounding)
         AC_ASSERT(m == op2, "Loss of precision due to Rounding");
       return rnd_ovfl;
     } else {
@@ -321,10 +321,10 @@ private:
     typedef ac_fixed<t_width,I2,true,Q2,O2> op2_t;
     op2_t op2 = m2;
     int ls = 0;
-    if(force_normalize) {
+    if (force_normalize) {
       bool all_sign;
       ls = m2.leading_sign(all_sign).to_int();
-    } else if(msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
+    } else if (msb_min_power_dif < 0 || msb_max_power_dif < 0 || W2 > W) {
       // msb_min_power_dif < 0: src exponent less negative than trg exp represents
       //   opportunity to further normalize value in trg representation
       // msb_max_power_dif < 0: max target exp is less than max src exp
@@ -341,10 +341,10 @@ private:
     }
     int actual_max_shift_left = (1 << (E-1)) + e_t;
     bool min_exp_v = false;
-    if(may_shift_right & (actual_max_shift_left < 0)) {
+    if (may_shift_right & (actual_max_shift_left < 0)) {
       const int shift_r_w = ac::nbits<max_right_shift>::val;
       ac_int<shift_r_w,false> shift_r = -actual_max_shift_left;
-      if((1 << (E-1)) + min_exp2 + I2-I < 0 && need_rem_bits) {
+      if ((1 << (E-1)) + min_exp2 + I2-I < 0 && need_rem_bits) {
         op2_t shifted_out_bits = op2;
         shifted_out_bits &= ~((~op2_t(0)) << shift_r);
         sticky_bit |= !!shifted_out_bits;
@@ -361,7 +361,7 @@ private:
     }
     ac_fixed<t_width+need_rem_bits,I,true> r_pre_rnd = 0;
     r_pre_rnd.set_slc(need_rem_bits, op2.template slc<t_width>(0));
-    if(need_rem_bits)
+    if (need_rem_bits)
       r_pre_rnd[0] = sticky_bit;
 
     bool shift_r1 = round(r_pre_rnd, assert_on_rounding);
@@ -377,11 +377,11 @@ private:
     #else
     e_t = (r_zero_rnd) ? MIN_EXP : e_t + sub_exp + shift_r1;
     #endif
-    if(!(e_t < 0) & !!(e_t >> E-1)) {
+    if (!(e_t < 0) & !!(e_t >> E-1)) {
       e = MAX_EXP;
       m = m < 0 ? value<AC_VAL_MIN>(m) : value<AC_VAL_MAX>(m);
-      if(assert_on_overflow) {
-        if(m < 0)
+      if (assert_on_overflow) {
+        if (m < 0)
           AC_ASSERT(false, "Overflow: Saturation to AC_VAL_MIN");
         else
           AC_ASSERT(false, "Overflow: Saturation to AC_VAL_MAX");
@@ -394,7 +394,7 @@ private:
   ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, ac_int<1,true> isZero, bool normalize=true) {
     m = m2;
     e = e2;
-    if(normalize)
+    if (normalize)
       this->normalize();
     else
     {
@@ -411,12 +411,12 @@ public:
   ac_float(const AC_FL(2) &op, bool force_normalize=false, bool assert_on_overflow=false, bool assert_on_rounding=false) {
     // force_normalize: don't assume op is already normalized
     typedef AC_FL(2) fl2_t;
-    if(E==E2 && I>=I2 && W-I >= W2-I2) {
+    if (E==E2 && I>=I2 && W-I >= W2-I2) {
       m = op.m;
       e = op.e;
-      if(force_normalize)
+      if (force_normalize)
         this->normalize();
-      else if(I > I2) {
+      else if (I > I2) {
         const int ls = I-I2;
         int e_t = e.to_int();
         int actual_max_shift_left = (1 << (E-1)) + e_t;
@@ -440,7 +440,7 @@ public:
   ac_float(const ac_fixed<W,I,S> &m2, const ac_int<E,true> &e2, bool normalize=true) {
     m = m2;
     e = e2;
-    if(normalize)
+    if (normalize)
       this->normalize();
     else
       #ifndef AC_FLOAT_OVERWRITE_ZERO_EXP
@@ -658,7 +658,7 @@ public:
     ac_fixed<mt_t::width, I2+1, mt_t::sign> op2_m_0 = op2.m;
     mt_t op2_m = 0;
     op2_m.set_slc(0, op2_m_0.template slc<mt_t::width>(0));
-    if(sub)
+    if (sub)
       op2_m = -op2_m;
     int op2_e = op2.exp().to_int() + I2-IT;
 
@@ -672,7 +672,7 @@ public:
     mt_t op_no_shift = e1_lt_e2 ? op2_m : op1_m;
 
     bool sticky_bit = false;
-    if(remaining_bits_needed) {
+    if (remaining_bits_needed) {
       mt_t shifted_out_bits = op_lshift;
       // bits that are shifted out of a add_t (does not include potential 3 spare bits)
       shifted_out_bits &= ~((~add_t(0)) << e_dif);
@@ -831,7 +831,7 @@ public:
 
   inline std::string to_string(ac_base_mode base_rep, bool sign_mag = false, bool hw=true) const {
     // TODO: printing decimal with exponent
-    if(!hw) {
+    if (!hw) {
       ac_fixed<W,0,S> mantissa;
       mantissa.set_slc(0, m.template slc<W>(0));
       std::string r = mantissa.to_string(base_rep, sign_mag);
@@ -840,12 +840,12 @@ public:
       return r;
     } else {
       std::string r = m.to_string(base_rep, sign_mag);
-      if(base_rep != AC_DEC)
+      if (base_rep != AC_DEC)
         r += "_";
       r += "e2";
-      if(base_rep != AC_DEC)
+      if (base_rep != AC_DEC)
         r += "_";
-      if(E)
+      if (E)
         r += e.to_string(base_rep, sign_mag | base_rep == AC_DEC);
       else
         r += "0";
@@ -870,9 +870,9 @@ public:
   template<ac_special_val V>
   inline ac_float &set_val() {
     m.template set_val<V>();
-    if(V == AC_VAL_MIN)
+    if (V == AC_VAL_MIN)
       e.template set_val<AC_VAL_MAX>();
-    else if(V == AC_VAL_QUANTUM)
+    else if (V == AC_VAL_QUANTUM)
       e.template set_val<AC_VAL_MIN>();
     else
       e.template set_val<V>();
@@ -884,7 +884,7 @@ namespace ac_private {
   template<typename T>
   bool ac_fpclassify(T x, bool &inf) {
     bool nan = !(x==x);
-    if(!nan) {
+    if (!nan) {
       T d = x - x;
       inf = !(d==d);
     }
@@ -896,9 +896,9 @@ namespace ac_private {
 #ifndef __SYNTHESIS__
     bool inf;
     bool nan = ac_fpclassify(d, inf);
-    if(nan)
+    if (nan)
       AC_ASSERT(0, "In conversion from double to ac_float: double is NaN");
-    else if(inf)
+    else if (inf)
       AC_ASSERT(0, "In conversion from double to ac_float: double is Infinite");
 #endif
     r_t::exp_t exp;
@@ -911,9 +911,9 @@ namespace ac_private {
 #ifndef __SYNTHESIS__
     bool inf;
     bool nan = ac_fpclassify(f, inf);
-    if(nan)
+    if (nan)
       AC_ASSERT(0, "In conversion from float to ac_float: float is NaN");
-    else if(inf)
+    else if (inf)
       AC_ASSERT(0, "In conversion from float to ac_float: float is Infinite");
 #endif
     r_t::exp_t exp;
@@ -1257,7 +1257,7 @@ namespace ac {
   inline bool init_array( AC_FL() *a, int n) {
     AC_FL0() t;
     t.template set_val<V>();
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }

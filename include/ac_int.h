@@ -2,13 +2,13 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
- *  Copyright 2004-2022 Siemens                                                *
+ *  Copyright 2022 Siemens                                                *
  *                                                                        *
  *                                                                        *
  *                                                                        *
@@ -209,11 +209,11 @@ namespace ac_private {
   inline void ac_assert(bool condition, const char *file=0, int line=0, const char *msg=0) {
   #ifndef __SYNTHESIS__
     #ifndef AC_USER_DEFINED_ASSERT
-    if(!condition) {
+    if (!condition) {
       std::cerr << "Assert";
-      if(file)
+      if (file)
         std::cerr << " in file " << file << ":" << line;
-      if(msg)
+      if (msg)
         std::cerr << " " << msg;
       std::cerr << std::endl;
       assert(0);
@@ -245,11 +245,11 @@ namespace ac_private {
   template<int N>
   inline double ldexpr32(double d) {
     double d2 = d;
-    if(N < 0)
-      for(int i=0; i < -N; i++)
+    if (N < 0)
+      for (int i=0; i < -N; i++)
         d2 /= (Ulong) 1 << 32;
     else
-      for(int i=0; i < N; i++)
+      for (int i=0; i < N; i++)
         d2 *= (Ulong) 1 << 32;
     return d2;
   }
@@ -266,7 +266,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_copy(const int *op, int *r) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = op[i];
   }
   template<> inline void iv_copy<1>(const int *op, int *r) {
@@ -279,8 +279,8 @@ namespace ac_private {
 
   template<int N>
   inline bool iv_equal_zero(const int *op){
-    for(int i=0; i < N; i++)
-      if(op[i])
+    for (int i=0; i < N; i++)
+      if (op[i])
         return false;
     return true;
   }
@@ -294,8 +294,8 @@ namespace ac_private {
 
   template<int N>
   inline bool iv_equal_ones(const int *op){
-    for(int i=0; i < N; i++)
-      if(~op[i])
+    for (int i=0; i < N; i++)
+      if (~op[i])
         return false;
     return true;
   }
@@ -313,12 +313,12 @@ namespace ac_private {
     const int M2 = AC_MIN(N1,N2);
     const int *OP1 = N1 >= N2 ? op1 : op2;
     const int *OP2 = N1 >= N2 ? op2 : op1;
-    for(int i=0; i < M2; i++)
-      if(OP1[i] != OP2[i])
+    for (int i=0; i < M2; i++)
+      if (OP1[i] != OP2[i])
         return false;
     int ext = OP2[M2-1] < 0 ? ~0 : 0;
-    for(int i=M2; i < M1; i++)
-      if(OP1[i] != ext)
+    for (int i=M2; i < M1; i++)
+      if (OP1[i] != ext)
         return false;
     return true;
   }
@@ -328,7 +328,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_ones_from(const int *op){
-    if((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] >> (B&31))))
+    if ((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] >> (B&31))))
       return false;
     return iv_equal_ones<N-(B+31)/32>(&op[(B+31)/32]);
   }
@@ -341,7 +341,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_zeros_from(const int *op){
-    if((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] >> (B&31))))
+    if ((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] >> (B&31))))
       return false;
     return iv_equal_zero<N-(B+31)/32>(&op[(B+31)/32]);
   }
@@ -354,7 +354,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_ones_to(const int *op){
-    if((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] | (all_ones << (B&31)))))
+    if ((B >= 32*N && op[N-1] >= 0) || (B&31 && ~(op[B/32] | (all_ones << (B&31)))))
       return false;
     return iv_equal_ones<B/32>(op);
   }
@@ -367,7 +367,7 @@ namespace ac_private {
 
   template<int B, int N>
   inline bool iv_equal_zeros_to(const int *op){
-    if((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] & ~(all_ones << (B&31)))))
+    if ((B >= 32*N && op[N-1] < 0) || (B&31 && (op[B/32] & ~(all_ones << (B&31)))))
       return false;
     return iv_equal_zero<B/32>(op);
   }
@@ -387,14 +387,14 @@ namespace ac_private {
     const bool b = (N1 >= N2) == greater;
     int ext = OP2[M2-1] < 0 ? ~0 : 0;
     int i2 = M1 > M2 ? ext : OP2[M1-1];
-    if(OP1[M1-1] != i2)
+    if (OP1[M1-1] != i2)
       return b ^ (OP1[M1-1] < i2);
-    for(int i=M1-2; i >= M2; i--) {
-      if((unsigned) OP1[i] != (unsigned) ext)
+    for (int i=M1-2; i >= M2; i--) {
+      if ((unsigned) OP1[i] != (unsigned) ext)
         return b ^ ((unsigned) OP1[i] < (unsigned) ext);
     }
-    for(int i=M2-1; i >= 0; i--) {
-      if((unsigned) OP1[i] != (unsigned) OP2[i])
+    for (int i=M2-1; i >= 0; i--) {
+      if ((unsigned) OP1[i] != (unsigned) OP2[i])
         return b ^ ((unsigned) OP1[i] < (unsigned) OP2[i]);
     }
     return false;
@@ -408,7 +408,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_extend(int *r, int ext) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = ext;
   }
   template<> inline void iv_extend<-2>(int * /*r*/, int /*ext*/) { }
@@ -425,7 +425,7 @@ namespace ac_private {
   template<int Nr>
   inline void iv_assign_int64(int *r, Slong l) {
     r[0] = (int) l;
-    if(Nr > 1) {
+    if (Nr > 1) {
       r[1] = (int) (l >> 32);
       iv_extend<Nr-2>(r+2, (r[1] < 0) ? ~0 : 0);
     }
@@ -441,7 +441,7 @@ namespace ac_private {
   template<int Nr>
   inline void iv_assign_uint64(int *r, Ulong l) {
     r[0] = (int) l;
-    if(Nr > 1) {
+    if (Nr > 1) {
       r[1] = (int) (l >> 32);
       iv_extend<Nr-2>(r+2, 0);
     }
@@ -477,9 +477,9 @@ namespace ac_private {
 
   template<int N1, int N2, int Nr>
   inline void iv_mult(const int *op1, const int *op2, int *r) {
-    if(Nr==1)
+    if (Nr==1)
       r[0] = op1[0] * op2[0];
-    else if(N1==1 && N2==1)
+    else if (N1==1 && N2==1)
       iv_assign_int64<Nr>(r, ((Slong) op1[0]) * ((Slong) op2[0]));
     else {
       const int M1 = AC_MAX(N1,N2);
@@ -492,26 +492,26 @@ namespace ac_private {
 
       Ulong l1 = 0;
       Slong l2 = 0;
-      for(int k=0; k < T1; k++) {
-        for(int i=0; i < k+1; i++)
+      for (int k=0; k < T1; k++) {
+        for (int i=0; i < k+1; i++)
           accumulate(mult_u_u(OP1[k-i], OP2[i]), l1, l2);
         l2 += (Ulong) (unsigned) (l1 >> 32);
         r[k] = (int) l1;
         l1 = (unsigned) l2;
         l2 >>= 32;
       }
-      for(int k=T1; k < T2; k++) {
+      for (int k=T1; k < T2; k++) {
         accumulate(mult_u_s(OP1[k-M2+1], OP2[M2-1]), l1, l2);
-        for(int i=0; i < M2-1; i++)
+        for (int i=0; i < M2-1; i++)
           accumulate(mult_u_u(OP1[k-i], OP2[i]), l1, l2);
         l2 += (Ulong) (unsigned) (l1 >> 32);
         r[k] = (int) l1;
         l1 = (unsigned) l2;
         l2 >>= 32;
       }
-      for(int k=T2; k < T3; k++) {
+      for (int k=T2; k < T3; k++) {
         accumulate(mult_u_s(OP1[k-M2+1], OP2[M2-1]), l1, l2);
-        for(int i=k-T2+1; i < M2-1; i++)
+        for (int i=k-T2+1; i < M2-1; i++)
           accumulate(mult_u_u(OP1[k-i], OP2[i]), l1, l2);
         accumulate(mult_s_u(OP1[M1-1], OP2[k-M1+1]), l1, l2);
         l2 += (Ulong) (unsigned) (l1 >> 32);
@@ -519,10 +519,10 @@ namespace ac_private {
         l1 = (unsigned) l2;
         l2 >>= 32;
       }
-      if(Nr >= M1+M2-1) {
+      if (Nr >= M1+M2-1) {
         accumulate(mult_s_s(OP1[M1-1], OP2[M2-1]), l1, l2);
         r[M1+M2-2] = (int) l1;
-        if(Nr >= M1+M2) {
+        if (Nr >= M1+M2) {
           l2 += (Ulong) (unsigned) (l1 >> 32);
           r[M1+M2-1] = (int) l2;
           iv_extend<Nr-(M1+M2)>(r+M1+M2, (r[M1+M2-1] < 0) ? ~0 : 0);
@@ -540,7 +540,7 @@ namespace ac_private {
   template<int N>
   inline bool iv_uadd_carry(const int *op1, bool carry, int *r) {
     Slong l = carry;
-    for(int i=0; i < N; i++) {
+    for (int i=0; i < N; i++) {
       l += (Ulong) (unsigned) op1[i];
       r[i] = (int) l;
       l >>= 32;
@@ -556,9 +556,9 @@ namespace ac_private {
 
   template<int N>
   inline bool iv_add_int_carry(const int *op1, int op2, bool carry, int *r) {
-    if(N==0)
+    if (N==0)
       return carry;
-    if(N==1) {
+    if (N==1) {
       Ulong l = carry + (Slong) op1[0] + (Slong) op2;
       r[0] = (int) l;
       return (l >> 32) & 1;
@@ -566,7 +566,7 @@ namespace ac_private {
     Slong l = carry + (Ulong) (unsigned) op1[0] + (Slong) op2;
     r[0] = (int) l;
     l >>= 32;
-    for(int i=1; i < N-1; i++) {
+    for (int i=1; i < N-1; i++) {
       l += (Ulong) (unsigned) op1[i];
       r[i] = (int) l;
       l >>= 32;
@@ -585,7 +585,7 @@ namespace ac_private {
   template<int N>
   inline bool iv_uadd_n(const int *op1, const int *op2, int *r) {
     Ulong l = 0;
-    for(int i=0; i < N; i++) {
+    for (int i=0; i < N; i++) {
       l += (Ulong)(unsigned) op1[i] + (Ulong)(unsigned) op2[i];
       r[i] = (int) l;
       l >>= 32;
@@ -609,7 +609,7 @@ namespace ac_private {
 
   template<int N1, int N2, int Nr>
   inline void iv_add(const int *op1, const int *op2, int *r) {
-    if(Nr==1)
+    if (Nr==1)
       r[0] = (unsigned) op1[0] + (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
@@ -633,7 +633,7 @@ namespace ac_private {
 
   template<int N>
   inline bool iv_sub_int_borrow(const int *op1, int op2, bool borrow, int *r) {
-    if(N==1) {
+    if (N==1) {
       Ulong l = (Slong) op1[0] - (Slong) op2 - borrow;
       r[0] = (int) l;
       return (l >> 32) & 1;
@@ -641,7 +641,7 @@ namespace ac_private {
     Slong l = (Ulong) (unsigned) op1[0] - (Slong) op2 - borrow;
     r[0] = (int) l;
     l >>= 32;
-    for(int i=1; i < N-1; i++) {
+    for (int i=1; i < N-1; i++) {
       l += (Ulong) (unsigned) op1[i];
       r[i] = (int) l;
       l >>= 32;
@@ -659,7 +659,7 @@ namespace ac_private {
 
   template<int N>
   inline bool iv_sub_int_borrow(int op1, const int *op2, bool borrow, int *r) {
-    if(N==1) {
+    if (N==1) {
       Ulong l = (Slong) op1 - (Slong) op2[0] - borrow;
       r[0] = (int) l;
       return (l >> 32) & 1;
@@ -667,7 +667,7 @@ namespace ac_private {
     Slong l = (Slong) op1 - (Ulong) (unsigned) op2[0] - borrow;
     r[0] = (int) l;
     l >>= 32;
-    for(int i=1; i < N-1; i++) {
+    for (int i=1; i < N-1; i++) {
       l -= (Ulong) (unsigned) op2[i];
       r[i] = (int) l;
       l >>= 32;
@@ -686,7 +686,7 @@ namespace ac_private {
   template<int N>
   inline bool iv_usub_n(const int *op1, const int *op2, int *r) {
     Slong l = 0;
-    for(int i=0; i < N; i++) {
+    for (int i=0; i < N; i++) {
       l += (Ulong)(unsigned) op1[i] - (Ulong)(unsigned) op2[i];
       r[i] = (int) l;
       l >>= 32;
@@ -709,7 +709,7 @@ namespace ac_private {
 
   template<int N1, int N2, int Nr>
   inline void iv_sub(const int *op1, const int *op2, int *r) {
-    if(Nr==1)
+    if (Nr==1)
       r[0] = (unsigned) op1[0] - (unsigned) op2[0];
     else {
       const int M1 = AC_MAX(N1,N2);
@@ -717,7 +717,7 @@ namespace ac_private {
       const int T1 = AC_MIN(M2-1,Nr);
       const int T2 = AC_MIN(M1,Nr);
       bool borrow = iv_usub_n<T1>(op1, op2, r);
-      if(N1 > N2)
+      if (N1 > N2)
         borrow = iv_sub_int_borrow<T2-T1>(op1+T1, op2[T1], borrow, r+T1);
       else
         borrow = iv_sub_int_borrow<T2-T1>(op1[T1], op2+T1, borrow, r+T1);
@@ -734,8 +734,8 @@ namespace ac_private {
   template<int N>
   inline bool iv_all_bits_same(const int *op, bool bit) {
     int t = bit ? ~0 : 0;
-    for(int i=0; i < N; i++)
-      if(op[i] != t)
+    for (int i=0; i < N; i++)
+      if (op[i] != t)
         return false;
     return true;
   }
@@ -747,12 +747,12 @@ namespace ac_private {
   template <int N, int Nr>
   void iv_neg(const int *op1, int *r) {
     Slong l = 0;
-    for(int k = 0; k < AC_MIN(N,Nr); k++) {
+    for (int k = 0; k < AC_MIN(N,Nr); k++) {
       l -= (Ulong) (unsigned) op1[k];
       r[k] = (unsigned) l;
       l >>= 32;
     }
-    if(Nr > N) {
+    if (Nr > N) {
       r[N] = (unsigned) (l - (op1[N-1] < 0 ? ~0 : 0));
       iv_extend<Nr-N-1>(r+N+1, r[N] < 0 ? ~0 : 0);
     }
@@ -760,7 +760,7 @@ namespace ac_private {
 
   template <int N, bool S, int Nr>
   void iv_abs(const int *op1, int *r) {
-    if( S && op1[N-1] < 0) {
+    if ( S && op1[N-1] < 0) {
       iv_neg<N,Nr>(op1, r);
     } else {
       iv_copy<AC_MIN(N,Nr)>(op1, r);
@@ -772,41 +772,41 @@ namespace ac_private {
   void iv_udiv(const sw2 *n, const sw2 *d, sw2 *q, sw2 *r) {
     const int w2_length = 2*w1_length;
     int d_msi;  // most significant int for d
-    for(d_msi = D-1; d_msi > 0 && !d[d_msi]; d_msi--) {}
+    for (d_msi = D-1; d_msi > 0 && !d[d_msi]; d_msi--) {}
     uw4 d1 = 0;
-    if(!d_msi && !d[0]) {
+    if (!d_msi && !d[0]) {
       d1 = n[0]/d[0];  // d is zero => divide by zero
       return;
     }
     int n_msi;  // most significant int for n
-    for(n_msi = N-1; n_msi > 0 && !n[n_msi]; n_msi--) {}
-    for(int i=0; i < Q; i++)
+    for (n_msi = N-1; n_msi > 0 && !n[n_msi]; n_msi--) {}
+    for (int i=0; i < Q; i++)
       q[i] = 0;
-    for(int i=0; i < R; i++)
+    for (int i=0; i < R; i++)
       r[i] = n[i];
     // write most significant "words" into d1
     bool d_mss_odd = (bool) (d[d_msi] >> w1_length);
     int d_mss= 2*d_msi + d_mss_odd;  // index to most significant short (16-bit)
     d1 = (uw4) (uw2) d[d_msi] << (w1_length << (int) !d_mss_odd);
-    if(d_msi)
+    if (d_msi)
       d1 |= (uw2) d[d_msi-1] >> (d_mss_odd ? w1_length : 0);
     bool n_mss_odd = (bool) (n[n_msi] >> w1_length);
     int n_mss = 2*n_msi + n_mss_odd;
-    if(n_mss < d_mss) {
+    if (n_mss < d_mss) {
       // q already initialized to 0
-      if(R) {
+      if (R) {
         int r_msi = AC_MIN(R-1, n_msi);
-        for(int j = 0; j <= r_msi; j++)
+        for (int j = 0; j <= r_msi; j++)
           r[j] = n[j];
-        for(int j = r_msi+1; j < R; j++)
+        for (int j = r_msi+1; j < R; j++)
           r[j] = 0;
       }
     } else {
       uw2 r1[N+1];
       r1[n_msi+1] = 0;
-      for(int k = n_msi; k >= 0; k--)
+      for (int k = n_msi; k >= 0; k--)
         r1[k] = n[k];
-      for(int k = n_mss; k >=d_mss; k--) {
+      for (int k = n_mss; k >=d_mss; k--) {
         int k_msi = k >> 1;
         bool odd = k & 1;
         uw2 r1m1 = k_msi > 0 ? r1[k_msi-1] : (uw2) 0;
@@ -814,7 +814,7 @@ namespace ac_private {
           (uw4) ((r1[k_msi+1] << w1_length) | (r1[k_msi] >> w1_length)) << w2_length | ((r1[k_msi] << w1_length) | (r1m1 >> w1_length)) :
           (uw4) r1[k_msi] << w2_length | r1m1;
         uw2 q1 = ((uw2) (n1/d1));
-        if(q1 >> w1_length)
+        if (q1 >> w1_length)
           q1--;
         AC_ASSERT(!(q1 >> w1_length), "Problem detected in long division algorithm, Please report");
         unsigned k2 = k - d_mss;
@@ -822,7 +822,7 @@ namespace ac_private {
         bool odd_2 = k2 & 1;
         uw2 q2 = q1 << (odd_2 ? w1_length : 0);
         sw4 l = 0;
-        for(int j = 0; j <= d_msi; j++) {
+        for (int j = 0; j <= d_msi; j++) {
           l += r1[k2_i + j];
           bool l_sign = l < 0;
           sw4 prod = (uw4) (uw2) d[j] * (uw4) q2;
@@ -831,39 +831,39 @@ namespace ac_private {
           bool ov2 = (l < 0) & (prod < 0) & l_sign;
           r1[k2_i + j] = (uw2) l;
           l >>= w2_length;
-          if(ov1)
+          if (ov1)
             l |= ((uw4) -1 << w2_length);
-          if(ov2)
+          if (ov2)
             l ^= ((sw4) 1 << w2_length);
         }
-        if(odd_2 | d_mss_odd) {
+        if (odd_2 | d_mss_odd) {
           l += r1[k2_i + d_msi + 1];
           r1[k2_i + d_msi + 1] = (uw2) l;
         }
-        if(l < 0) {
+        if (l < 0) {
           l = 0;
-          for(int j = 0; j <= d_msi; j++) {
+          for (int j = 0; j <= d_msi; j++) {
             l += (sw4) (uw2) d[j] << (odd_2 ? w1_length : 0);
             l += r1[k2_i + j];
             r1[k2_i + j] = (uw2) l;
             l >>= w2_length;
           }
-          if(odd_2 | d_mss_odd)
+          if (odd_2 | d_mss_odd)
             r1[k2_i + d_msi + 1] += (uw2) l;
           q1--;
         }
-        if(Q && k2_i < Q) {
-          if(odd_2)
+        if (Q && k2_i < Q) {
+          if (odd_2)
             q[k2_i] = q1 << w1_length;
           else
             q[k2_i] |= q1;
         }
       }
-      if(R) {
+      if (R) {
         int r_msi = AC_MIN(R-1, n_msi);
-        for(int j = 0; j <= r_msi; j++)
+        for (int j = 0; j <= r_msi; j++)
           r[j] = r1[j];
-        for(int j = r_msi+1; j < R; j++)
+        for (int j = r_msi+1; j < R; j++)
           r[j] = 0;
       }
     }
@@ -876,23 +876,23 @@ namespace ac_private {
   template<int N1, int Num_s, int N2, int Den_s, int Nr>
   inline void iv_div(const int *op1, const int *op2, int *r) {
     enum { N1_over = N1+(Den_s && (Num_s==2)) };
-    if(N1_over==1 && N2==1) {
+    if (N1_over==1 && N2==1) {
       r[0] = op1[0] / op2[0];
       iv_extend<Nr-N1>(r+1, ((Num_s || Den_s) && (r[0] < 0)) ? ~0 : 0);
     }
-    else if(N1_over==1 && N2==2)
+    else if (N1_over==1 && N2==2)
       iv_assign_int64<Nr>(r, ((Slong) op1[0]) / conv_to_Slong(op2) );
-    else if(N1_over==2 && N2==1)
-      if(N1 == 1)
+    else if (N1_over==2 && N2==1)
+      if (N1 == 1)
         iv_assign_int64<Nr>(r, ((Slong) op1[0]) / ((Slong) op2[0]) );
       else
         iv_assign_int64<Nr>(r, conv_to_Slong(op1) / ((Slong) op2[0]) );
-    else if(N1_over==2 && N2==2)
-      if(N1 == 1)
+    else if (N1_over==2 && N2==2)
+      if (N1 == 1)
         iv_assign_int64<Nr>(r, ((Slong) op1[0]) / conv_to_Slong(op2) );
       else
         iv_assign_int64<Nr>(r, conv_to_Slong(op1) / conv_to_Slong(op2) );
-    else if(!Num_s && !Den_s) {
+    else if (!Num_s && !Den_s) {
       iv_udiv<N1,N2,Nr,0,int,unsigned,Slong,Ulong,16>(op1, op2, r, 0);
     }
     else {
@@ -903,7 +903,7 @@ namespace ac_private {
       iv_abs<N1, (bool) Num_s, N1_neg>(op1, numerator);
       iv_abs<N2, (bool) Den_s, N2_neg>(op2, denominator);
       iv_udiv<N1_neg,N2_neg,N1_neg,0,int,unsigned,Slong,Ulong,16>(numerator, denominator, quotient, 0);
-      if( (Num_s && op1[N1-1] < 0) ^ (Den_s && op2[N2-1] < 0) )
+      if ( (Num_s && op1[N1-1] < 0) ^ (Den_s && op2[N2-1] < 0) )
         iv_neg<N1_neg, Nr>(quotient, r);
       else {
         iv_copy<AC_MIN(N1_neg,Nr)>(quotient, r);
@@ -915,23 +915,23 @@ namespace ac_private {
   template<int N1, int Num_s, int N2, int Den_s, int Nr>
   inline void iv_rem(const int *op1, const int *op2, int *r) {
     enum { N1_over = N1+(Den_s && (Num_s==2)) };   // N1_over corresponds to the division
-    if(N1_over==1 && N2==1) {
+    if (N1_over==1 && N2==1) {
       r[0] = op1[0] % op2[0];
       iv_extend<Nr-1>(r+1, Num_s && r[0] < 0 ? ~0 : 0);
     }
-    else if(N1_over==1 && N2==2)
+    else if (N1_over==1 && N2==2)
       iv_assign_int64<Nr>(r, ((Slong) op1[0]) % conv_to_Slong(op2) );
-    else if(N1_over==2 && N2==1)
-      if(N1 == 1)
+    else if (N1_over==2 && N2==1)
+      if (N1 == 1)
         iv_assign_int64<Nr>(r, ((Slong) op1[0]) % ((Slong) op2[0]) );
       else
         iv_assign_int64<Nr>(r, conv_to_Slong(op1) % ((Slong) op2[0]) );
-    else if(N1_over==2 && N2==2)
-      if(N1 == 1)
+    else if (N1_over==2 && N2==2)
+      if (N1 == 1)
         iv_assign_int64<Nr>(r, ((Slong) op1[0]) % conv_to_Slong(op2) );
       else
         iv_assign_int64<Nr>(r, conv_to_Slong(op1) % conv_to_Slong(op2) );
-    else if(!Num_s && !Den_s) {
+    else if (!Num_s && !Den_s) {
       iv_udiv<N1,N2,0,Nr,int,unsigned,Slong,Ulong,16>(op1, op2, 0, r);
     }
     else {
@@ -942,7 +942,7 @@ namespace ac_private {
       iv_abs<N1, (bool) Num_s, N1_neg>(op1, numerator);
       iv_abs<N2, (bool) Den_s, N2_neg>(op2, denominator);
       iv_udiv<N1_neg,N2_neg,0,N2,int,unsigned,Slong,Ulong,16>(numerator, denominator, 0, remainder);
-      if( (Num_s && op1[N1-1] < 0) )
+      if ( (Num_s && op1[N1-1] < 0) )
         iv_neg<N2, Nr>(remainder, r);
       else {
         iv_copy<AC_MIN(N2,Nr)>(remainder, r);
@@ -953,7 +953,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_bitwise_complement_n(const int *op, int *r) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = ~op[i];
   }
   template<> inline void iv_bitwise_complement_n<1>(const int *op, int *r) {
@@ -973,7 +973,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_bitwise_and_n(const int *op1, const int *op2, int *r) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = op1[i] & op2[i];
   }
   template<> inline void iv_bitwise_and_n<1>(const int *op1, const int *op2, int *r) {
@@ -992,7 +992,7 @@ namespace ac_private {
     const int *OP2 = N1 > N2 ? op2 : op1;
 
     iv_bitwise_and_n<M2>(op1, op2, r);
-    if(OP2[M2-1] < 0)
+    if (OP2[M2-1] < 0)
       iv_copy<M1-M2>(OP1+M2, r+M2);
     else
       iv_extend<M1-M2>(r+M2, 0);
@@ -1001,7 +1001,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_bitwise_or_n(const int *op1, const int *op2, int *r) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = op1[i] | op2[i];
   }
   template<> inline void iv_bitwise_or_n<1>(const int *op1, const int *op2, int *r) {
@@ -1020,7 +1020,7 @@ namespace ac_private {
     const int *OP2 = N1 >= N2 ? op2 : op1;
 
     iv_bitwise_or_n<M2>(op1, op2, r);
-    if(OP2[M2-1] < 0)
+    if (OP2[M2-1] < 0)
       iv_extend<M1-M2>(r+M2, ~0);
     else
       iv_copy<M1-M2>(OP1+M2, r+M2);
@@ -1029,7 +1029,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_bitwise_xor_n(const int *op1, const int *op2, int *r) {
-    for(int i=0; i < N; i++)
+    for (int i=0; i < N; i++)
       r[i] = op1[i] ^ op2[i];
   }
   template<> inline void iv_bitwise_xor_n<1>(const int *op1, const int *op2, int *r) {
@@ -1048,7 +1048,7 @@ namespace ac_private {
     const int *OP2 = N1 >= N2 ? op2 : op1;
 
     iv_bitwise_xor_n<M2>(op1, op2, r);
-    if(OP2[M2-1] < 0)
+    if (OP2[M2-1] < 0)
       iv_bitwise_complement_n<M1-M2>(OP1+M2, r+M2);
     else
       iv_copy<M1-M2>(OP1+M2, r+M2);
@@ -1059,15 +1059,15 @@ namespace ac_private {
   inline void iv_shift_l(const int *op1, unsigned op2, int *r) {
     unsigned s31 = op2 & 31;
     unsigned ishift = (op2 >> 5) > Nr ? Nr : (op2 >> 5);
-    if(s31 && ishift!=Nr) {
+    if (s31 && ishift!=Nr) {
       unsigned lw = 0;
-      for(unsigned i=0; i < Nr; i++) {
+      for (unsigned i=0; i < Nr; i++) {
         unsigned hw = (i >= ishift && i < N) ? op1[i-ishift] : 0;
         r[i] = (hw << s31) | (lw >> (32-s31));
         lw = hw;
       }
     } else {
-      for(unsigned i=0; i < Nr ; i++)
+      for (unsigned i=0; i < Nr ; i++)
         r[i] = (i >= ishift && i < N) ? op1[i-ishift] : 0;
     }
   }
@@ -1092,15 +1092,15 @@ namespace ac_private {
     unsigned s31 = op2 & 31;
     unsigned ishift = (op2 >> 5) > N ? N : (op2 >> 5);
     int ext = op1[N-1] < 0 ? ~0 : 0;
-    if(s31 && ishift!=N) {
+    if (s31 && ishift!=N) {
       unsigned lw = (ishift < N) ? op1[ishift] : ext;
-      for(unsigned i=0; i < Nr; i++) {
+      for (unsigned i=0; i < Nr; i++) {
         unsigned hw = (i+ishift+1 < N) ? op1[i+ishift+1] : ext;
         r[i] = (lw >> s31) | (hw << (32-s31));
         lw = hw;
       }
     } else {
-      for(unsigned i=0; i < Nr ; i++)
+      for (unsigned i=0; i < Nr ; i++)
         r[i] = (i+ishift < N) ? op1[i+ishift] : ext;
     }
   }
@@ -1122,7 +1122,7 @@ namespace ac_private {
 
   template<int N, int Nr, bool S>
   inline void iv_shift_l2(const int *op1, signed op2, int *r) {
-    if(S && op2 < 0)
+    if (S && op2 < 0)
       iv_shift_r<N,Nr>(op1, -op2, r);
     else
       iv_shift_l<N,Nr>(op1, op2, r);
@@ -1139,7 +1139,7 @@ namespace ac_private {
 
   template<int N, int Nr, bool S>
   inline void iv_shift_r2(const int *op1, signed op2, int *r) {
-    if(S && op2 < 0)
+    if (S && op2 < 0)
       iv_shift_l<N,Nr>(op1, -op2, r);
     else
       iv_shift_r<N,Nr>(op1, op2, r);
@@ -1157,7 +1157,7 @@ namespace ac_private {
   template<int N, int Nr, int B>
   inline void iv_const_shift_l(const int *op1, int *r) {
     // B >= 0
-    if(!B) {
+    if (!B) {
       const int M1 = AC_MIN(N,Nr);
       iv_copy<M1>(op1, r);
       iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? -1 : 0);
@@ -1167,19 +1167,19 @@ namespace ac_private {
       const int ishift = (((B >> 5) > Nr) ? Nr : (B >> 5));
       iv_extend<ishift>(r, 0);
       const int M1 = AC_MIN(N+ishift,Nr);
-      if(s31) {
+      if (s31) {
         unsigned lw = 0;
-        for(int i=ishift; i < M1; i++) {
+        for (int i=ishift; i < M1; i++) {
           unsigned hw = op1[i-ishift];
           r[i] = (hw << s31) | (lw >> ((32-s31)&31));  // &31 is to quiet compilers
           lw = hw;
         }
-        if(Nr > M1) {
+        if (Nr > M1) {
           r[M1] = (signed) lw >> ((32-s31)&31);  // &31 is to quiet compilers
           iv_extend<Nr-M1-1>(r+M1+1, r[M1] < 0 ? ~0 : 0);
         }
       } else {
-        for(int i=ishift; i < M1 ; i++)
+        for (int i=ishift; i < M1 ; i++)
           r[i] = op1[i-ishift];
         iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? -1 : 0);
       }
@@ -1194,7 +1194,7 @@ namespace ac_private {
 
   template<int N, int Nr, int B>
   inline void iv_const_shift_r(const int *op1, int *r) {
-    if(!B) {
+    if (!B) {
       const int M1 = AC_MIN(N,Nr);
       iv_copy<M1>(op1, r);
       iv_extend<Nr-M1>(r+M1, r[M1-1] < 0 ? ~0 : 0);
@@ -1203,15 +1203,15 @@ namespace ac_private {
       const unsigned s31 = B & 31;
       const int ishift = (((B >> 5) > N) ? N : (B >> 5));
       int ext = op1[N-1] < 0 ? ~0 : 0;
-      if(s31 && ishift!=N) {
+      if (s31 && ishift!=N) {
         unsigned lw = (ishift < N) ? op1[ishift] : ext;
-        for(int i=0; i < Nr; i++) {
+        for (int i=0; i < Nr; i++) {
           unsigned hw = (i+ishift+1 < N) ? op1[i+ishift+1] : ext;
           r[i] = (lw >> s31) | (hw << ((32-s31)&31));  // &31 is to quiet compilers
           lw = hw;
         }
       } else {
-        for(int i=0; i < Nr ; i++)
+        for (int i=0; i < Nr ; i++)
           r[i] = (i+ishift < N) ? op1[i+ishift] : ext;
       }
     }
@@ -1230,7 +1230,7 @@ namespace ac_private {
     double dfloor = mgc_floor(d2);
     *o = dfloor != 0.0;
     d2 = d2 - dfloor;
-    for(int i=N-1; i >=0; i--) {
+    for (int i=N-1; i >=0; i--) {
       d2 *= (Ulong) 1 << 32;
       unsigned k = (unsigned int) d2;
       r[i] = b ? ~k : k;
@@ -1241,7 +1241,7 @@ namespace ac_private {
     d2 -= k;
     *rbits = d2 != 0.0;
     *qb = (b && *rbits) ^ k;
-    if(b && !*rbits && !*qb)
+    if (b && !*rbits && !*qb)
       iv_uadd_carry<N>(r, true, r);
     *o |= b ^ (r[N-1] < 0);
   }
@@ -1253,11 +1253,11 @@ namespace ac_private {
     int k = (w+B-1)/B;
     int n = (w+31) >> 5;
     int bits = 0;
-    if(b != AC_BIN && left_just) {
-      if( (bits = -(w % B)) )
+    if (b != AC_BIN && left_just) {
+      if ( (bits = -(w % B)) )
         r[--k] = 0;
     }
-    for(int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
       if (b != AC_BIN && bits < 0) {
         // This is a roundabout way to do the accumulation but it also prevents conversion warnings
         // from showing up when using certain compilers.
@@ -1265,60 +1265,60 @@ namespace ac_private {
         r[k] = (char) (r[k] + add_val);
       }
       unsigned int m = (unsigned) v[i] >> -bits;
-      for(bits += 32; bits > 0 && k; bits -= B) {
+      for (bits += 32; bits > 0 && k; bits -= B) {
         r[--k] = (char) (m & (b-1));
         m >>= B;
       }
     }
-    for(int i=0; i < (w+B-1)/B; i++)
+    for (int i=0; i < (w+B-1)/B; i++)
       r[i] = digits[(int)r[i]];
     return (w+B-1)/B;
   }
   template<> inline int to_str<AC_DEC>(int *v, int w, bool left_just, char *r) {
     int k = 0;
     int msw = (w-1) >> 5;
-    if(left_just) {
+    if (left_just) {
       unsigned bits_msw = w & 31;
-      if(bits_msw) {
+      if (bits_msw) {
         unsigned left_shift = 32 - bits_msw;
-        for(int i=msw; i > 0; i--)
+        for (int i=msw; i > 0; i--)
           v[i] = (unsigned) v[i] << left_shift | (unsigned) v[i-1] >> bits_msw;
         v[0] = (unsigned) v[0] << left_shift;
       }
       int lsw = 0;
       while(lsw < msw || v[msw] ) {
         Ulong l = 0;
-        for(int i=lsw; i <= msw; i++) {
+        for (int i=lsw; i <= msw; i++) {
           l += (Ulong) (unsigned) v[i] * 10;
           v[i] = (int) l;
           l >>= 32;
-          if(i==lsw && !v[i])
+          if (i==lsw && !v[i])
             lsw++;
         }
         r[k++] = (char) ('0' + (int) l);
       }
     } else {
       const unsigned d = 1000000000;   // 10E9
-      for(; msw > 0 && !v[msw]; msw--) {}
+      for (; msw > 0 && !v[msw]; msw--) {}
       while(msw >= 0) {
         Ulong nl = 0;
-        for(int i = msw; i >= 0; i--) {
+        for (int i = msw; i >= 0; i--) {
           nl <<= 32;
           nl |= (unsigned) v[i];
           unsigned q = (unsigned) (nl/d);
           nl -= (Ulong) q * d;
           v[i] = q;
         }
-        if(!v[msw])
+        if (!v[msw])
           msw--;
         bool last = msw == -1;
         unsigned rem = (unsigned) nl;
-        for(int i=0; (i < 9 && !last) || rem; i++) {
+        for (int i=0; (i < 9 && !last) || rem; i++) {
           r[k++] = (char) ('0' + (int) (rem % 10));
           rem /= 10;
         }
       }
-      for(int i=0; i < k/2; i++) {
+      for (int i=0; i < k/2; i++) {
         char c = r[i];
         r[i] = r[k-1-i];
         r[k-1-i] = c;
@@ -1329,25 +1329,25 @@ namespace ac_private {
   }
 
   inline int to_string(int *v, int w, bool sign_mag, ac_base_mode base, bool left_just, bool pad_to_width, char *r) {
-    if(!left_just && !pad_to_width) {
+    if (!left_just && !pad_to_width) {
       int n = (w+31) >> 5;
       bool neg = !sign_mag && v[n-1] < 0;
       while(n-- && v[n] == (neg ? ~0 : 0)) {}
       int w2 = 32*(n+1);
-      if(w2) {
+      if (w2) {
         int m = v[n];
-        for(int i = 16; i > 0; i >>= 1) {
-          if((m >> i) == (neg ? ~0 : 0))
+        for (int i = 16; i > 0; i >>= 1) {
+          if ((m >> i) == (neg ? ~0 : 0))
             w2 -= i;
           else
             m >>= i;
         }
       }
-      if(w2 < w)
+      if (w2 < w)
         w = w2;
       w += !sign_mag;
     }
-    if(base == AC_DEC)
+    if (base == AC_DEC)
       return to_str<AC_DEC>(v, w, left_just, r);
     else if (base == AC_HEX)
       return to_str<AC_HEX>(v, w, left_just, r);
@@ -1365,15 +1365,15 @@ namespace ac_private {
     const unsigned char tab[] = {4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
     unsigned t = bit ? ~*op : *op;
     unsigned cnt = 0;
-    if(t >> 16)
+    if (t >> 16)
       t >>= 16;
     else
       cnt += 16;
-    if(t >> 8)
+    if (t >> 8)
       t >>= 8;
     else
       cnt += 8;
-    if(t >> 4)
+    if (t >> 4)
       t >>= 4;
     else
       cnt += 4;
@@ -1385,30 +1385,30 @@ namespace ac_private {
   inline unsigned iv_leading_bits(const int *op, bool bit) {
     int ext_sign = bit ? -1 : 0;
     int k;
-    for(k = N-1; k >= 0 && op[k] == ext_sign; k--) {}
+    for (k = N-1; k >= 0 && op[k] == ext_sign; k--) {}
     return 32*(N-1-k) + (k < 0 ? 0 : iv_leading_bits<1>(op+k, bit));
   }
 
   template<int W>
   inline unsigned reverse_u(unsigned x) {
     unsigned r = x;
-    if(W > 1) {
+    if (W > 1) {
       int mask = 0x55555555;
       int shift = 1;
       r = (mask & r) << shift | unsigned(~mask & r) >> shift;
-      if(W > 2) {
+      if (W > 2) {
         mask = 0x33333333;
         shift = 2;
         r = (mask & r) << shift | unsigned(~mask & r) >> shift;
-        if(W > 4) {
+        if (W > 4) {
           mask = 0x0f0f0f0f;
           shift = 4;
           r = (mask & r) << shift | unsigned(~mask & r) >> shift;
-          if(W > 8) {
+          if (W > 8) {
             mask = 0x00ff00ff;
             shift = 8;
             r = (mask & r) << shift | unsigned(~mask & r) >> shift;
-            if(W > 16) {
+            if (W > 16) {
               mask = 0x0000ffff;
               shift = 16;
               r = (mask & r) << shift | unsigned(~mask & r) >> shift;
@@ -1423,7 +1423,7 @@ namespace ac_private {
 
   template<int N>
   inline void iv_reverse(const int *op, int *r) {
-    for(int k=0; k < N; k++)
+    for (int k=0; k < N; k++)
       r[k] = reverse_u<32>((unsigned) op[N-1-k]);
   }
   template<> inline void iv_reverse<1>(const int *op, int *r) {
@@ -1491,14 +1491,14 @@ namespace ac_private {
       iv_extend<N-1>(v+1, 0);
     }
     iv ( long t) {
-      if(long_w == 32) {
+      if (long_w == 32) {
         v[0] = t;
         iv_extend<N-1>(v+1, (t < 0) ? ~0 : 0);
       } else
         iv_assign_int64<N>(v, t);
     }
     iv ( unsigned long t) {
-      if(long_w == 32) {
+      if (long_w == 32) {
         v[0] = t;
         iv_extend<N-1>(v+1, 0);
       } else
@@ -1515,7 +1515,7 @@ namespace ac_private {
     inline Ulong to_uint64() const { return N==1 ? (Ulong) v[0] : ((Ulong)v[1] << 32) | (Ulong) (unsigned) v[0]; }
     inline double to_double() const {
       double a = v[N-1];
-      for(int i=N-2; i >= 0; i--) {
+      for (int i=N-2; i >= 0; i--) {
         a *= (Ulong) 1 << 32;
         a += (unsigned) v[i];
       }
@@ -1629,7 +1629,7 @@ namespace ac_private {
 
       // Copy over shifted version of op2 (by lsb_b) to this->v starting at v[lsb_v]
       iv_shift_l<N2,N2>(op2.v, lsb_b, v+lsb_v);
-      if(msb_v-lsb_v == N2)  // slice crosses over iv boundary because of lsb_b
+      if (msb_v-lsb_v == N2)  // slice crosses over iv boundary because of lsb_b
         v[msb_v] = ((unsigned) op2.v[N2-1] >> 1) >> (31-lsb_b);   // equiv to << (lsb_b-32)
 
       // Clear sign extension bits originating from op2
@@ -1969,8 +1969,8 @@ namespace ac {
       const int rshift = (P2&31) - (P&31);
       int shifted_src[Nr];
       int *aligned_src = val.d_iv+src_lsi;
-      if(rshift) {
-        if(rshift < 0)
+      if (rshift) {
+        if (rshift < 0)
           ac_private::iv_shift_l<N,Nr>(aligned_src, -rshift, shifted_src);
         else
           ac_private::iv_shift_r<N,Nr>(aligned_src, rshift, shifted_src);
@@ -1978,20 +1978,20 @@ namespace ac {
       }
       unsigned mask_lsi = ac_private::all_ones << trg_lsb;
       unsigned mask_msi = ac_private::all_ones >> (31-trg_msb);
-      if(Nr==1)
+      if (Nr==1)
         mask_lsi &= mask_msi;
       int *v = d_iv+trg_lsi;
       v[0] ^= (v[0] ^ ((unsigned) aligned_src[0])) & mask_lsi;
-      for(int k=1; k < Nr-1; k++)
+      for (int k=1; k < Nr-1; k++)
         v[k] = aligned_src[k];
-      if(Nr > 1)
+      if (Nr > 1)
         v[Nr-1] ^= (v[Nr-1] ^ ((unsigned) aligned_src[Nr-1])) & mask_msi;
-      if(Is_MSB) {
+      if (Is_MSB) {
         const unsigned rem = 31-trg_msb;
-        if(rem) {
+        if (rem) {
           v[Nr-1] =  S ? ((signed) ((unsigned) v[Nr-1]  << rem) >> rem)
                        : ((unsigned) v[Nr-1]  << rem) >> rem;
-        } else if(!S) {
+        } else if (!S) {
           v[Nr] = 0;
         }
       }
@@ -2044,11 +2044,19 @@ __AC_INT_UTILITY_BASE
     bit_adjust();
     bool overflow_seen = ovf_vra(orig_in);
     NumBase::update(orig_in.to_double(), overflow_seen, int_bits);
+    #ifdef EXTRA_VRA_STATS
+    int msb_idx = ac_vra_ns::calc_msb_idx(orig_in);
+    NumBase::update_msb(orig_in.to_double(), msb_idx);
+    #endif
   }
 
   inline void bit_adjust_vra(const double orig_in, int int_bits) {
     bit_adjust();
     NumBase::update(orig_in, ovf_vra(orig_in, int_bits), int_bits);
+    #ifdef EXTRA_VRA_STATS
+    int msb_idx = ac_vra_ns::calc_msb_idx(orig_in);
+    NumBase::update_msb(orig_in, msb_idx);
+    #endif
   }
 
   template <class T>
@@ -2056,10 +2064,18 @@ __AC_INT_UTILITY_BASE
     bit_adjust();
     double orig_double = (double)orig_in;
     NumBase::update(orig_double, ovf_vra(orig_in), int_bits);
+    #ifdef EXTRA_VRA_STATS
+    int msb_idx = ac_vra_ns::calc_msb_idx(orig_in);
+    NumBase::update_msb(orig_double, msb_idx);
+    #endif
   }
 
   inline void this_update() {
     NumBase::update(this->to_double(), false, ac_vra_ns::calc_int_bits(*this));
+    #ifdef EXTRA_VRA_STATS
+    int msb_idx = ac_vra_ns::calc_msb_idx(*this);
+    NumBase::update_msb(this->to_double(), msb_idx);
+    #endif
   }
 
   inline static ac_int get_max_vra() {
@@ -2134,14 +2150,14 @@ __AC_INT_UTILITY_BASE
     #endif
     min_exp.template set_val<AC_VAL_MIN>();
     int max_shift = (exp - min_exp - reserved_min_exp).to_int();
-    if(lshift > max_shift) {
+    if (lshift > max_shift) {
       lshift = (ac_int<WE,false>(max_shift)).to_int();
       expt = (min_exp + reserved_min_exp).to_int();
       fully_normalized = false;
     } else {
       expt -= lshift;
     }
-    if(Base::equal_zero()) {
+    if (Base::equal_zero()) {
       expt = 0;
       fully_normalized = true;
     }
@@ -2241,15 +2257,19 @@ public:
   };
 
   #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
-  friend ac_int<std::numeric_limits<double>::digits + 1, true> get_thresh_min();
-
-  friend ac_int<std::numeric_limits<double>::digits, false> get_thresh_max();
-
   template <int W2, bool S2>
   friend int ac_vra_ns::calc_int_bits(const ac_int<W2, S2> &op2);
 
   template <class T>
   friend int ac_vra_ns::calc_int_bits(const T op2);
+
+  #ifdef EXTRA_VRA_STATS
+  template <int W2, bool S2>
+  friend int ac_vra_ns::calc_msb_idx(const ac_int<W2, S2> &op2);
+
+  template <class T>
+  friend int ac_vra_ns::calc_msb_idx(const T op2);
+  #endif
 
   // Make this a friend function so that you can access the ac_int constructor
   // that bypasses stack tracing.
@@ -2334,7 +2354,7 @@ public:
   template<ac_special_val V>
   inline ac_int &set_val() {
     const unsigned int all_ones = (unsigned) ~0;
-    if(V == AC_VAL_DC) {
+    if (V == AC_VAL_DC) {
       #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
       ac_int r(AC_VRA_STACK_NOT_TRACED);
       #else
@@ -2343,12 +2363,12 @@ public:
       Base::operator =(r);
       bit_adjust();
     }
-    else if(V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
+    else if (V == AC_VAL_0 || V == AC_VAL_MIN || V == AC_VAL_QUANTUM) {
       Base::operator =(0);
-      if(S && V == AC_VAL_MIN) {
+      if (S && V == AC_VAL_MIN) {
         const unsigned int rem = (W-1)&31;
         Base::v[N-1] = (all_ones << rem);
-      } else if(V == AC_VAL_QUANTUM)
+      } else if (V == AC_VAL_QUANTUM)
         Base::v[0] = 1;
     }
     else {  // AC_VAL_MAX
@@ -2396,26 +2416,26 @@ public:
     // base_rep == AC_DEC => pad_to_width == don't care
     char r[N*32+4] = {0};
     int i = 0;
-    if(sign_mag)
+    if (sign_mag)
       r[i++] = is_neg() ? '-' : '+';
     else if (base_rep == AC_DEC && is_neg())
       r[i++] = '-';
-    if(base_rep != AC_DEC) {
+    if (base_rep != AC_DEC) {
       r[i++] = '0';
       r[i++] = base_rep == AC_BIN ? 'b' : (base_rep == AC_OCT ? 'o' : 'x');
     }
     int str_w;
-    if( (base_rep == AC_DEC || sign_mag) && is_neg() ) {
+    if ( (base_rep == AC_DEC || sign_mag) && is_neg() ) {
       ac_int<W, false>  mag = operator -();
       str_w = ac_private::to_string(mag.v, W+!pad_to_width, sign_mag, base_rep, false, pad_to_width, r+i);
-    } else if(pad_to_width) {
+    } else if (pad_to_width) {
       ac_int<W,false> tmp = *this;
       str_w = ac_private::to_string(tmp.v, W, sign_mag, base_rep, false, true, r+i);
     } else {
       ac_int<W,S> tmp = *this;
       str_w = ac_private::to_string(tmp.v, W+!S, sign_mag, base_rep, false, false, r+i);
     }
-    if(!str_w) {
+    if (!str_w) {
       r[i] = '0';
       r[i+1] = 0;
     }
@@ -2979,7 +2999,7 @@ public:
   template<int W2, bool S2, int WX, bool SX>
   inline ac_int &set_slc(const ac_int<WX,SX> lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb.to_int() + W2 <= W && lsb.to_int() >= 0, "Out of bounds set_slc");
-    if(W == W2)
+    if (W == W2)
       Base::operator =(slc);
     else {
       unsigned ulsb = ac_int<WX-SX, false>(lsb).to_uint();
@@ -2992,7 +3012,7 @@ public:
   template<int W2, bool S2>
   inline ac_int &set_slc(signed lsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(lsb + W2 <= W && lsb >= 0, "Out of bounds set_slc");
-    if(W == W2)
+    if (W == W2)
       Base::operator =(slc);
     else {
       unsigned ulsb = lsb & ((unsigned)~0 >> 1);
@@ -3005,7 +3025,7 @@ public:
   template<int W2, bool S2>
   inline ac_int &set_slc(unsigned ulsb, const ac_int<W2,S2> &slc) {
     AC_ASSERT(ulsb + W2 <= W, "Out of bounds set_slc");
-    if(W == W2)
+    if (W == W2)
       Base::operator =(slc);
     else
       Base::set_slc(ulsb, W2, (ac_int<W2,true>) slc);
@@ -3039,7 +3059,7 @@ public:
 
     inline ac_bitref operator = ( int val ) {
       // lsb of int (val&1) is written to bit
-      if(d_index < W) {
+      if (d_index < W) {
         int *pval = &d_bv.v[d_index>>5];
         int shift = d_index & 31;
         unsigned int mask = 1u << shift;
@@ -3096,7 +3116,7 @@ public:
   }
 
   void reverse() {
-    if(W > 32) {
+    if (W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);
       #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -3113,7 +3133,7 @@ public:
   }
 
   ac_int<W,false> reversed() const {
-    if(W > 32) {
+    if (W > 32) {
       typedef ac_int<W,true> intW_t;
       typename intW_t::Base r0(*this);
       #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
@@ -3199,25 +3219,25 @@ public:
   }
   bool xor_reduce() const {
     unsigned r = Base::v[N-1];
-    if(S) {
+    if (S) {
       const unsigned rem = (32-W)&31;
       r = (r << rem) >> rem;
     }
-    if(N > 1)
+    if (N > 1)
       r ^= Base::v[N-2];
-    if(N > 2) {
-      for(int i=0; i<N-2; i++)
+    if (N > 2) {
+      for (int i=0; i<N-2; i++)
         r ^= Base::v[i];
     }
-    if(W > 16)
+    if (W > 16)
       r ^= r >> 16;
-    if(W > 8)
+    if (W > 8)
       r ^= r >> 8;
-    if(W > 4)
+    if (W > 4)
       r ^= r >> 4;
-    if(W > 2)
+    if (W > 2)
       r ^= r >> 2;
-    if(W > 1)
+    if (W > 1)
     r ^= r >> 1;
     return r&1;
   }
@@ -3234,11 +3254,11 @@ public:
     while(*str) {
       char c = *str;
       int h = 0;
-      if(c >= '0' && c <= '9')
+      if (c >= '0' && c <= '9')
         h = c - '0';
-      else if(c >= 'A' && c <= 'F')
+      else if (c >= 'A' && c <= 'F')
         h = c - 'A' + 10;
-      else if(c >= 'a' && c <= 'f')
+      else if (c >= 'a' && c <= 'f')
         h = c - 'a' + 10;
       else {
         AC_ASSERT(!c, "Invalid hex digit");
@@ -3266,7 +3286,7 @@ public:
     #else
     ac_int<M*32,false> res = 0;
     #endif
-    for(int i=0; i < M; i++)
+    for (int i=0; i < M; i++)
       res.set_slc(i*32, ac_int<32>(ivec[bigendian ? M-1-i : i]));
     *this = res;
   }
@@ -3731,7 +3751,7 @@ SPECIAL_VAL_FOR_INTS(Ulong, 64, false)
   template<ac_special_val V> \
   inline bool init_array(C_TYPE *a, int n) { \
     C_TYPE t = value<V>((C_TYPE) 0); \
-    for(int i=0; i < n; i++) \
+    for (int i=0; i < n; i++) \
       a[i] = t; \
     return true; \
   }
@@ -3743,7 +3763,7 @@ namespace ac {
   inline bool init_array(ac_int<W,S> *a, int n) {
     ac_int<W,S> t;
     t.template set_val<V>();
-    for(int i=0; i < n; i++)
+    for (int i=0; i < n; i++)
       a[i] = t;
     return true;
   }

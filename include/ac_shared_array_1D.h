@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.1                                              *
+ *  Software Version: 2026.2                                              *
  *                                                                        *
- *  Release Date    : Wed Mar 11 20:32:09 PDT 2026                        *
+ *  Release Date    : Tue May 12 21:03:10 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.1.1                                            *
+ *  Release Build   : 2026.2.0                                            *
  *                                                                        *
  *  Copyright 2024 Siemens                                                *
  *                                                                        *
@@ -43,7 +43,6 @@
 //       uint16 my_array[0x1000];
 //   use:
 //       ac_shared_array_1D<uint16, 0x1000> my_array;
-
 
 #ifndef __AC_SHARED_ARRAY_1D_H
 #define __AC_SHARED_ARRAY_1D_H
