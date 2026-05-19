@@ -27,7 +27,10 @@
  *  limitations under the License.                                        *
  **************************************************************************
  *                                                                        *
- *  The most recent version of this package is available at github.       *
+ *  This file was modified by the PandA team from Politecnico di Milano   *
+ *  to support the PandA/Bambu ac_types distribution. This derivative     *
+ *  distribution is licensed under the Apache License, Version 2.0, with  *
+ *  the BAMBU exceptions stated in the repository LICENSE file.           *
  *                                                                        *
  ***********************************************************************"""
 #
