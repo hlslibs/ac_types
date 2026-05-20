@@ -2341,11 +2341,17 @@ using Slong = long long;
                                                            iv_base<N, C, W, S>& r)
       {
          Slong l = carry;
-         LOOP(int, i, 0, exclude, N, {
+         LOOP(int, i, 0, exclude, N - 1, {
             l += (Ulong)(unsigned)op1[i];
             r.set(i, (int)l);
             l >>= 32;
          });
+
+         l += (Ulong)(unsigned)op1[N-1];
+         r.set(N-1, (int)l);
+         unsigned sh_amt = S ? 32 :((W - 1) & 31) + 1; 
+         l >>= sh_amt;
+         
          return l & 1;
       }
 

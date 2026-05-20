@@ -47,11 +47,11 @@
 
 #include "ac_int.h"
 
-#if(defined(__GNUC__) && __GNUC__ < 3 && !defined(__EDG__))
+#if (defined(__GNUC__) && __GNUC__ < 3 && !defined(__EDG__))
 #error GCC version 3 or greater is required to include this header file
 #endif
 
-#if(defined(_MSC_VER) && _MSC_VER < 1400 && !defined(__EDG__))
+#if (defined(_MSC_VER) && _MSC_VER < 1400 && !defined(__EDG__))
 #error Microsoft Visual Studio 8 or newer is required to include this header file
 #endif
 
@@ -98,7 +98,7 @@ namespace __AC_NAMESPACE
    template <int W, int I, bool S = true, ac_q_mode Q = AC_TRN, ac_o_mode O = AC_WRAP>
    class ac_fixed : private ac_private::iv<(W + 31 + !S) / 32, false, W, S>
 #ifndef __BAMBU__
-                        __AC_FIXED_UTILITY_BASE
+                    __AC_FIXED_UTILITY_BASE
 #endif
    {
       enum
@@ -129,59 +129,46 @@ namespace __AC_NAMESPACE
 
       __FORCE_INLINE constexpr void overflow_adjust(bool overflow, bool neg)
       {
+         if(!overflow) 
+         {
+            return;
+         }
+
          if(O == AC_WRAP)
          {
             return;
          }
          else if(O == AC_SAT_ZERO)
          {
-            if(overflow)
-            {
-               ac_private::iv_extend<0>(Base::v, 0);
-            }
-            else
-            {
-            }
+            ac_private::iv_extend<0>(Base::v, 0);
          }
          else if(S)
          {
-            if(overflow)
+            if(!neg)
             {
-               if(!neg)
-               {
-                  LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, ~0); });
-                  Base::v.set(N - 1, (~((unsigned)~0 << ((W - 1) & 31))));
-               }
-               else
-               {
-                  LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, 0); });
-                  Base::v.set(N - 1, ((unsigned)~0 << ((W - 1) & 31)));
-                  if(O == AC_SAT_SYM)
-                  {
-                     Base::v.set(0, Base::v[0] | 1);
-                  }
-               }
+               LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, ~0); });
+               Base::v.set(N - 1, (~((unsigned)~0 << ((W - 1) & 31))));
             }
             else
             {
+               LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, 0); });
+               Base::v.set(N - 1, ((unsigned)~0 << ((W - 1) & 31)));
+               if(O == AC_SAT_SYM)
+               {
+                  Base::v.set(0, Base::v[0] | 1);
+               }
             }
          }
          else
          {
-            if(overflow)
+            if(!neg)
             {
-               if(!neg)
-               {
-                  LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, ~0); });
-                  Base::v.set(N - 1, ~((unsigned)~0 << (W & 31)));
-               }
-               else
-               {
-                  ac_private::iv_extend<0>(Base::v, 0);
-               }
+               LOOP(int, idx, 0, exclude, N - 1, { Base::v.set(idx, ~0); });
+               Base::v.set(N - 1, ~((unsigned)~0 << (W & 31)));
             }
             else
             {
+               ac_private::iv_extend<0>(Base::v, 0);
             }
          }
       }
@@ -343,6 +330,7 @@ namespace __AC_NAMESPACE
             QUAN_INC = F2 > F && !(Q == AC_TRN || (Q == AC_TRN_ZERO && !S2))
          };
          bool carry = false;
+
          // handle quantization
          if(F2 == F)
          {
@@ -354,9 +342,10 @@ namespace __AC_NAMESPACE
             //      ac_private::iv_const_shift_r<N2,N,F2-F>(op.v, Base::v);
             if(Q != AC_TRN && !(Q == AC_TRN_ZERO && !S2))
             {
-               bool qb = (F2 - F > W2) ? (op.v[N2 - 1] < 0) : (bool)op[F2 - F - 1];
+               bool qb = (F2 - F > W2) ? (S2 && op.v[N2 - 1] < 0) : (bool)op[F2 - F - 1];
                bool r =
                    (F2 > F + 1) ? !ac_private::iv_equal_zeros_to<((F2 > F + 1) ? F2 - F - 1 : 1), N2>(op.v) : false;
+
                carry = quantization_adjust(qb, r, S2 && op.v[N2 - 1] < 0);
             }
          }
@@ -365,13 +354,23 @@ namespace __AC_NAMESPACE
             op.template const_shift_l<F - F2>(*this);
          }
          //      ac_private::iv_const_shift_l<N2,N,F-F2>(op.v, Base::v);
+
          // handle overflow/underflow
-         if(O != AC_WRAP &&
-            ((!S && S2) || (I - S < I2 - S2 + (QUAN_INC || (S2 && O == AC_SAT_SYM && (O2 != AC_SAT_SYM || F2 > F))))))
+         if(O != AC_WRAP /* normal overflow/underflow */ &&
+            ((!S && S2) /* moving from a signed to unsigned */ ||
+             // # target's integer bits (no sign) is less then # integer bits (no sign)
+             // of source considering that rounding is not symmetric
+             //
+             // QUAN_INC = F2 > F && !(Q == AC_TRN || (Q == AC_TRN_ZERO && !S2))
+             (I - S < I2 - S2 + (QUAN_INC || (S2 && O == AC_SAT_SYM && (O2 != AC_SAT_SYM || F2 > F))))))
          { // saturation
-            bool deleted_bits_zero = (!(W & 31) && S) || 0 == (Base::v[N - 1] >> (W & 31));
-            bool deleted_bits_one = (!(W & 31) && S) || 0 == (~(Base::v[N - 1] >> (W & 31)));
+
+            // if source signed a bit is lost if either 0 either 1
+            // if source unsigned then if carry == 0 a lost bit is 0 if carry == 1 then the lost bit is 1
+            bool deleted_bits_zero = S2 ? true : !carry;
+            bool deleted_bits_one = true;
             bool neg_src = false;
+
             if((F2 - F + W) < W2)
             {
                const bool all_ones = ac_private::iv_equal_ones_from<F2 - F + W, N2>(op.v);
@@ -384,11 +383,13 @@ namespace __AC_NAMESPACE
             }
             else
             {
-               neg_src = S2 && op.v[N2 - 1] < 0 && Base::v[N - 1] < 0;
+               neg_src = S2 && op.v[N2 - 1] < 0 && (bool)this->operator[](W - 1);
             }
+
             bool neg_trg = S && (bool)this->operator[](W - 1);
             bool overflow = !neg_src && (neg_trg || !deleted_bits_zero);
             overflow |= neg_src && (!neg_trg || !deleted_bits_one);
+
             if(O == AC_SAT_SYM && S && S2)
             {
                overflow |= neg_src && (W > 1 ? ac_private::iv_equal_zeros_to<W - 1, N>(Base::v) : true);
@@ -2153,7 +2154,7 @@ namespace __AC_NAMESPACE
          // double
 
       } // namespace ops_with_other_types
-   }    // namespace ac
+   } // namespace ac
 
    using namespace ac::ops_with_other_types;
 
