@@ -1,0 +1,68 @@
+name: ACMath tests
+
+on:
+  pull_request:
+    paths:
+      - "include/**"
+      - ".github/workflows/acmath-tests.yml"
+  push:
+    branches:
+      - dev/panda-hls
+    paths:
+      - "include/**"
+      - ".github/workflows/acmath-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acmath-tests:
+    name: "${{ matrix.compiler }} ${{ matrix.flags || '(default)' }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: g++
+            flags: ""
+          - compiler: g++
+            flags: -std=c++17
+          - compiler: clang++
+            flags: ""
+          - compiler: clang++
+            flags: -std=c++17
+          - compiler: clang++-16
+            flags: -std=c++17
+
+    steps:
+      - name: Checkout ac_types
+        uses: actions/checkout@v5
+        with:
+          path: ac_types
+
+      - name: Checkout ac_math
+        uses: actions/checkout@v5
+        with:
+          repository: ferrandi/ac_math
+          ref: dev/panda-hls
+          path: ac_math
+
+      - name: Install compiler dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++
+          if [[ "${{ matrix.compiler }}" == "clang++-16" ]]; then
+            sudo apt-get install -y --no-install-recommends clang-16
+          fi
+
+      - name: Run ACMath regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./ac_math/ac_math_test.sh "$(mktemp -d /tmp/ac_math_XXX)" \
+            CXX=${{ matrix.compiler }} \
+            CXXUSERFLAGS="${{ matrix.flags }}" \
+            -j"$(nproc)"
