@@ -56,17 +56,11 @@ namespace hls
       }
 
 #if !defined(__BAMBU__) || defined(__BAMBU_SIM__)
-      stream(const stream&) = default;
-      stream(int init) : ac_channel<T>(init)
-      {
-      }
-      stream(int init, T val) : ac_channel<T>(init, val)
-      {
-      }
-      stream(std::initializer_list<T> val) : ac_channel<T>(val)
-      {
-      }
-      stream& operator=(const stream&) = default;
+   stream(const stream<T, DEPTH> &) = default;
+   stream(int init) : ac_channel<T>(init) {}
+   stream(int init, T val) : ac_channel<T>(init, val) {}
+   stream(std::initializer_list<T> val) : ac_channel<T>(val) {}
+   stream &operator=(const stream<T, DEPTH> &) = default;
 #endif
 
       ~stream() = default;
@@ -108,8 +102,8 @@ namespace hls
 
     private:
 #if defined(__BAMBU__) && !defined(__BAMBU_SIM__)
-      stream(const stream&) = delete;
-      stream& operator=(const stream&) = delete;
+      stream(const stream<T, DEPTH>&) = delete;
+      stream& operator=(const stream<T, DEPTH>&) = delete;
 #endif
    };
 } // namespace hls
