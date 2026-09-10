@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.2                                              *
+ *  Software Version: 2026.3                                              *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.2.1                                            *
+ *  Release Build   : 2026.3.0                                            *
  *                                                                        *
  *  Copyright 2020 Siemens                                                *
  *                                                                        *
@@ -208,20 +208,33 @@ __AC_FIXED_UTILITY_BASE
   template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
   friend int ac_vra_ns::calc_int_bits(const ac_fixed<W2, I2, S2, Q2, O2> &op2);
 
+  #ifdef FAST_VRA
+public:
+  inline void vraReg(
+    const std::string &var_name,
+    const std::string &file_name, const int line_num,
+    int num_elems
+  ) {
+    typedef typename NumBase::cBase cBase_type;
+
+    constexpr bool is_cmplx = false;
+    cBase_type::registerVar(var_name, file_name, line_num, is_cmplx, num_elems);
+  }
+
+private:
+  #endif
+
   #ifdef EXTRA_VRA_STATS
+  template <int absN, class T>
+  friend int calc_msb_idx_helper(const T &op2, const bool op2_is_neg);
+  
+  // This has to be declared private. If it isn't, the "absBaseVar.operator =(op2)" line in the function
+  // will error out.
+  template <int absN, int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
+  friend int calc_msb_idx_helper_fixed(const ac_fixed<W2, I2, S2, Q2, O2> &op2, const bool op2_is_neg);
+
   template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
   friend int ac_vra_ns::calc_msb_idx(const ac_fixed<W2, I2, S2, Q2, O2> &op2);
-
-  // Dump all bits into an integer type to help find the MSB index.
-  // This is a highly specialized version of the slc(...) method.
-  inline const ac_int<W, false> get_bits_vra() const {
-    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
-    ac_int<W, false> r(AC_VRA_STACK_NOT_TRACED);
-    #endif
-    Base::shift_r(0, r);
-    r.bit_adjust();
-    return r;
-  }
   #endif
 
   template <int W2, int I2, bool S2, ac_q_mode Q2, ac_o_mode O2>
@@ -743,8 +756,16 @@ public:
     const char *q[] = {"AC_TRN", "AC_RND", "AC_TRN_ZERO", "AC_RND_ZERO", "AC_RND_INF", "AC_RND_MIN_INF", "AC_RND_CONV", "AC_RND_CONV_ODD" };
     const char *o[] = {"AC_WRAP", "AC_SAT", "AC_SAT_ZERO", "AC_SAT_SYM" };
     std::string r = "ac_fixed<";
+    #if __cplusplus > 199711L
+    // If we're using C++11 or newer, we use std::to_string for the following reasons:
+    //   1. It's faster.
+    //   2. We can avoid compiler warnings while using -Wall with -O3.
+    r += std::to_string(W) + ',';
+    r += std::to_string(I) + ',';
+    #else
     r += ac_int<32,true>(W).to_string(AC_DEC) + ',';
     r += ac_int<32,true>(I).to_string(AC_DEC) + ',';
+    #endif
     r += tf[S];
     r += ',';
     r += q[Q];

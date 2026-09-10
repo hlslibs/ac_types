@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.2                                              *
+ *  Software Version: 2026.3                                              *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.2.1                                            *
+ *  Release Build   : 2026.3.0                                            *
  *                                                                        *
  *  Copyright 2020 Siemens                                                *
  *                                                                        *
@@ -91,7 +91,12 @@ struct ac_channel_exception {
     no_insert_defined_for_channel_type,
     no_size_in_connections,
     no_num_free_in_connections,
-    no_output_empty_in_connections
+    no_almost_full_in_connections,
+    no_almost_empty_in_connections,
+    no_prog_full_in_connections,
+    no_prog_empty_in_connections,
+    no_output_empty_in_connections,
+    no_read_counter_in_connections
   };
   static inline const char *msg(const code &code_) {
       static const char *const s[] = {
@@ -102,8 +107,13 @@ struct ac_channel_exception {
           "No operator[] defined for channel type",
           "No insert defined for channel type",
           "Connections does not support size()",
+          "Connections does not support almost_full()",
+          "Connections does not support almost_empty()",
+          "Connections does not support prog_full()",
+          "Connections does not support prog_empty()",
           "Connections does not support num_free()",
-          "Connections::Out does not support empty()"
+          "Connections::Out does not support empty()",
+          "Connections does not support read_counter()"
       };
       return s[code_-code_begin];
   }
@@ -132,19 +142,32 @@ public:
   bool nb_peek(T& t) { return chan.nb_peek(t); }
 
   void write(const T& t) { chan.write(t); }
-  bool nb_write(const T& t) {
-    chan.incr_size_call_count();
-    return chan.nb_write(t);
-  }
+  bool nb_write(const T& t) { return chan.nb_write(t); }
 
   unsigned int size() {
     chan.incr_size_call_count();
     return chan.size();
   }
+  unsigned int data_count() { return chan.size(); }
   bool empty() { return chan.empty(); }
 
   // Return true if channel has at least k entries
   bool available(unsigned int k) const { return chan.available(k); }
+
+
+  bool almost_full() const { return chan.almost_full(); }
+
+  bool prog_full(int prog_full_threshold) const { return chan.prog_full(prog_full_threshold); }
+
+  bool almost_empty() const { return chan.almost_empty(); }
+
+  bool prog_empty(int prog_empty_threshold) const { return chan.prog_empty(prog_empty_threshold); }
+
+  void set_almost_full_thresh(unsigned int thr) { chan.set_almost_full_thresh(thr); }
+  void set_almost_empty_thresh(unsigned int thr) { chan.set_almost_empty_thresh(thr); }
+  void set_fifo_capacity(unsigned int cap) { chan.set_fifo_capacity(cap); }
+
+  unsigned int read_counter() const { return chan.read_counter(); }
 
   void reset() { chan.reset(); }
 
@@ -216,14 +239,31 @@ public:
       virtual bool empty() = 0;
       virtual bool available(unsigned int k) const = 0;
       virtual unsigned int size() const = 0;
+      virtual bool almost_full() const = 0;
+      virtual bool prog_full(int prog_full_threshold) const = 0;
+      virtual bool almost_empty() const = 0;
+      virtual bool prog_empty(int prog_empty_threshold) const = 0;
       virtual unsigned int num_free() const = 0;
       virtual void reset() = 0;
       virtual const T &operator_sb(const unsigned int &pos, const T &default_value) const = 0;
+      virtual void set_almost_full_thresh(unsigned int thr) = 0;
+      virtual void set_almost_empty_thresh(unsigned int thr) = 0;
+      virtual void set_fifo_capacity(unsigned int cap) = 0;
+      // logical transaction counters 
+      virtual unsigned int read_counter() const = 0;
     };
 
     struct fifo_ac_channel : fifo_abstract {
       std::deque<T> ch;
 
+      unsigned int almost_full_thr;
+      unsigned int almost_empty_thr;
+      unsigned int fifo_capacity;
+      
+      // logical transaction counters for read/write pointer APIs
+      unsigned int rd_count;
+
+      fifo_ac_channel() : almost_full_thr(1), almost_empty_thr(1), fifo_capacity(0), rd_count(0) {}
       ~fifo_ac_channel() {}
 
       static inline fifo_type ftype() { return fifo_ac_channel_type; }
@@ -260,8 +300,22 @@ public:
           ch.pop_front();
         return t;
       }
+
+      unsigned int incr_with_wrap(unsigned int val) const {
+        if (fifo_capacity == 0) {
+          // Backward-compatible behavior if capacity is not explicitly set.
+          return val + 1;
+        }
+        val += 1;
+        if (val >= fifo_capacity)
+          val = 0;
+        return val;
+      }
+
       T read() {
-            return readOrPeek<true>();
+          T t = readOrPeek<true>();
+          rd_count = incr_with_wrap(rd_count);
+          return t;
         }
       bool nb_read(T& t) { return empty() ? false : (t = read(), true); }
 
@@ -277,8 +331,22 @@ public:
       bool available(unsigned int k) const { return size() >= k; }
       unsigned int size() const { return (int)ch.size(); }
       unsigned int num_free() const { return ch.max_size() - ch.size(); }
+      bool almost_full() const { return size() >= almost_full_thr; }
+      bool prog_full(int prog_full_threshold) const { return size() >= (unsigned int)prog_full_threshold; }
+      bool almost_empty() const { return size() <= almost_empty_thr; }
+      bool prog_empty(int prog_empty_threshold) const { return size() <= (unsigned int)prog_empty_threshold; }
+      void reset() { ch.clear(); rd_count = 0; }
 
-      void reset() { ch.clear(); }
+      void set_almost_full_thresh(unsigned int thr) { almost_full_thr = thr; }
+      void set_almost_empty_thresh(unsigned int thr) { almost_empty_thr = thr; }
+      void set_fifo_capacity(unsigned int cap) {
+        fifo_capacity = cap;
+        if (fifo_capacity) {
+          rd_count %= fifo_capacity;
+        }
+      }
+      
+      unsigned int read_counter() const { return rd_count; }
 
       const T &operator_sb(const unsigned int &pos, const T &) const {
         return ch[pos];
@@ -323,6 +391,30 @@ public:
       const T &operator_sb(const unsigned int &, const T &default_value) const {
         AC_CHANNEL_ASSERT(0, ac_channel_exception::no_operator_sb_defined_for_channel_type);
         return default_value;
+      }
+
+      bool almost_full() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_full_in_connections);
+        return false;
+      }
+      bool prog_full(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_full_in_connections);
+        return false;
+      }
+      bool almost_empty() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_empty_in_connections);
+        return false;
+      }
+      bool prog_empty(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_empty_in_connections);
+        return false;
+      }
+      void set_almost_full_thresh(unsigned int) {}
+      void set_almost_empty_thresh(unsigned int) {}
+      void set_fifo_capacity(unsigned int) {}
+      unsigned int read_counter() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_read_counter_in_connections);
+        return 0;
       }
     };
 public:
@@ -381,6 +473,30 @@ private:
         AC_CHANNEL_ASSERT(0, ac_channel_exception::no_operator_sb_defined_for_channel_type);
         return default_value;
       }
+
+      bool almost_full() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_full_in_connections);
+        return false;
+      }
+      bool prog_full(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_full_in_connections);
+        return false;
+      }
+      bool almost_empty() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_empty_in_connections);
+        return false;
+      }
+      bool prog_empty(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_empty_in_connections);
+        return false;
+      }
+      void set_almost_full_thresh(unsigned int) {}
+      void set_almost_empty_thresh(unsigned int) {}
+      void set_fifo_capacity(unsigned int) {}
+      unsigned int read_counter() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_read_counter_in_connections);
+        return 0;
+      }
     };
 
     struct fifo_connections_sync : fifo_abstract {
@@ -426,6 +542,30 @@ private:
       const T &operator_sb(const unsigned int &, const T &default_value) const {
         AC_CHANNEL_ASSERT(0, ac_channel_exception::no_operator_sb_defined_for_channel_type);
         return default_value;
+      }
+
+      bool almost_full() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_full_in_connections);
+        return false;
+      }
+      bool prog_full(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_full_in_connections);
+        return false;
+      }
+      bool almost_empty() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_almost_empty_in_connections);
+        return false;
+      }
+      bool prog_empty(int) const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_prog_empty_in_connections);
+        return false;
+      }
+      void set_almost_full_thresh(unsigned int) {}
+      void set_almost_empty_thresh(unsigned int) {}
+      void set_fifo_capacity(unsigned int) {}
+      unsigned int read_counter() const {
+        AC_CHANNEL_ASSERT(0, ac_channel_exception::no_read_counter_in_connections);
+        return 0;
       }
     };
 
@@ -475,7 +615,19 @@ private:
     inline bool empty() { return f->empty(); }
     inline bool available(unsigned int k) const { return f->available(k); }
     inline unsigned int size() const { return f->size(); }
+    inline unsigned int data_count() const { return f->size(); }
+    inline bool almost_full() const { return f->almost_full(); }
+    inline bool prog_full(int prog_full_threshold) const { return f->prog_full(prog_full_threshold); }
+    inline bool almost_empty() const { return f->almost_empty(); }
+    inline bool prog_empty(int prog_empty_threshold) const { return f->prog_empty(prog_empty_threshold); }
     inline unsigned int num_free() const { return f->num_free(); }
+
+    inline void set_almost_full_thresh(unsigned int thr) { f->set_almost_full_thresh(thr); }
+    inline void set_almost_empty_thresh(unsigned int thr) { f->set_almost_empty_thresh(thr); }
+    inline void set_fifo_capacity(unsigned int cap) { f->set_fifo_capacity(cap); }
+    
+    // NEW: Counter access for ReadCounter approach
+    inline unsigned int read_counter() const { return f->read_counter(); }
 
     inline void reset() {
       f->reset();

@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.2                                              *
+ *  Software Version: 2026.3                                              *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.2.1                                            *
+ *  Release Build   : 2026.3.0                                            *
  *                                                                        *
  *  Copyright 2022 Siemens                                                *
  *                                                                        *
@@ -410,6 +410,10 @@ namespace ac_private {
 
 #ifdef AC_STD_FLOAT_OPT
 #include <ac_fpmath_int/ac_std_float_synth.h>
+#endif
+
+#ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+#include <ac_fpmath_int/ac_std_float_architectures.h>
 #endif
 
 template<int W, int E>
@@ -1057,20 +1061,28 @@ public:
   template<ac_q_mode QR, bool No_SubNormals, bool Effective_Add=false, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float add(const ac_std_float &op2) const {
 #ifndef AC_STD_FLOAT_ADD_OVERRIDE
-#ifdef AC_STD_FLOAT_OPT
+  #ifdef AC_STD_FLOAT_OPT
     ac_std_float r;
     r.set_data(float_synthlib::add<QR, No_SubNormals, E, W, Effective_Add>(data_ac_int(), op2.data_ac_int()));
     return r;
-#else
-    return add_generic<QR,No_SubNormals,Effective_Add,Saturate>(op2);
-#endif
+  #else
+    #ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+      return add_selection<W,E,QR,No_SubNormals,Effective_Add,Saturate>(*this, op2);
+    #else
+      return add_generic<QR,No_SubNormals,Effective_Add,Saturate>(op2);
+    #endif
+  #endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_ADD_OVERRIDE<QR,No_SubNormals>(*this, op2);
 #endif
   }
   template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float sub(const ac_std_float &op2) const {
+  #ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+    return sub_selection<W,E,QR,No_SubNormals,Saturate>(*this, op2);
+  #else
     return add<QR,No_SubNormals,false,Saturate>(-op2);
+  #endif
   }
   template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float mult_generic(const ac_std_float &op2) const {
@@ -1344,7 +1356,11 @@ public:
     r.set_data(float_synthlib::div<QR, No_SubNormals, E, W>(data_ac_int(), op2.data_ac_int()));
     return r;
 #else
-    return div_generic<QR,No_SubNormals,Saturate>(op2);
+    #ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+      return div_selection<W,E,QR,No_SubNormals,Saturate>(*this, op2);
+    #else
+      return div_generic<QR,No_SubNormals,Saturate>(op2);
+    #endif
 #endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_DIV_OVERRIDE<QR,No_SubNormals>(*this, op2);
@@ -1484,7 +1500,11 @@ public:
   template<ac_q_mode QR, bool No_SubNormals, ac_std_float_sat_mode Saturate=NonSat>
   ac_std_float fma(const ac_std_float &op2, const ac_std_float &op3) const {
 #ifndef AC_STD_FLOAT_FMA_OVERRIDE
-    return fma_generic<QR,No_SubNormals,Saturate>(op2,op3);
+    #ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+      return fma_selection<W,E,QR,No_SubNormals,Saturate>(*this, op2, op3);
+    #else
+      return fma_generic<QR,No_SubNormals,Saturate>(op2,op3);
+    #endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_FMA_OVERRIDE<QR,No_SubNormals>(*this,op2,op3);
 #endif
@@ -1565,7 +1585,11 @@ public:
     r.set_data(float_synthlib::sqrt<QR, No_SubNormals, E, W>(data_ac_int()));
     return r;
 #else
-    return sqrt_generic<QR,No_SubNormals,Saturate>();
+    #ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+      return sqrt_selection<W,E,QR,No_SubNormals,Saturate>(*this);
+    #else
+      return sqrt_generic<QR,No_SubNormals,Saturate>();
+    #endif
 #endif
 #else
     return AC_STD_FLOAT_OVERRIDE_NS AC_STD_FLOAT_SQRT_OVERRIDE<QR,No_SubNormals>(*this);
@@ -2814,6 +2838,10 @@ inline bool isnormal(const ac::bfloat16 &x) { return x.isnormal(); }
 inline bool isinf(const ac::bfloat16 &x) { return x.isinf(); }
 inline bool isnan(const ac::bfloat16 &x) { return x.isnan(); }
 }
+
+#ifdef AC_STD_FLOAT_ARCHITECTURE_SELECTION
+#include <ac_fpmath_int/ac_std_float_architectures_impl.h>
+#endif
 
 #undef __AC_DATA_PRIVATE
 #undef AC_STD_FLOAT_FX_DIV_OVERRIDE

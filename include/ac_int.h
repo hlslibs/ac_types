@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.2                                              *
+ *  Software Version: 2026.3                                              *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.2.1                                            *
+ *  Release Build   : 2026.3.0                                            *
  *                                                                        *
  *  Copyright 2022 Siemens                                                *
  *                                                                        *
@@ -139,6 +139,16 @@
 #define AC_INT_VRA_DISABLE(a) (void(0))
 #define AC_INT_VRA_ENABLE(a) (void(0))
 
+#define REGISTER_VAR(var) (void(0))
+#define REGISTER_VAR_PREFIX(var, prefix) (void(0))
+#define REGISTER_VAR_SUFFIX(var, suffix) (void(0))
+#define REGISTER_ARRAY(var, arraySize) (void(0))
+#define REGISTER_ARRAY_PREFIX(var, arraySize, prefix) (void(0))
+#define REGISTER_ARRAY_SUFFIX(var, arraySize, suffix) (void(0))
+#define REGISTER_ACARRAY(var) (void(0))
+#define REGISTER_ACARRAY_PREFIX(var, prefix) (void(0))
+#define REGISTER_ACARRAY_SUFFIX(var, suffix) (void(0))
+
 #else // VRA kicks in outside of HLS, if enabled.
 
 #ifdef AC_FIXED_VRA
@@ -157,9 +167,27 @@
 // Regardless of whether you use ac_int or ac_fixed VRA, vra_instr.h will be included here to avoid
 // redefinition conflicts with ac_q_mode and ac_o_mode.
 #include "vra_instr.h"
+#else
+#ifdef FAST_VRA
+#error You can only define FAST_VRA if AC_INT_VRA and/or AC_FIXED_VRA are also defined.
 #endif
 
-#ifdef AC_INT_VRA
+#ifdef EXTRA_VRA_STATS
+#error You can only define EXTRA_VRA_STATS if AC_INT_VRA and/or AC_FIXED_VRA are also defined.
+#endif
+
+#define REGISTER_VAR(var) (void(0))
+#define REGISTER_VAR_PREFIX(var, prefix) (void(0))
+#define REGISTER_VAR_SUFFIX(var, suffix) (void(0))
+#define REGISTER_ARRAY(var, arraySize) (void(0))
+#define REGISTER_ARRAY_PREFIX(var, arraySize, prefix) (void(0))
+#define REGISTER_ARRAY_SUFFIX(var, arraySize, suffix) (void(0))
+#define REGISTER_ACARRAY(var) (void(0))
+#define REGISTER_ACARRAY_PREFIX(var, prefix) (void(0))
+#define REGISTER_ACARRAY_SUFFIX(var, suffix) (void(0))
+#endif
+
+#if defined(AC_INT_VRA) && !defined(FAST_VRA)
 #define AC_INT_VRA_DISABLE(a) a.disable_vra()
 #define AC_INT_VRA_ENABLE(a) a.enable_vra()
 #else
@@ -1510,6 +1538,10 @@ namespace ac_private {
       iv_conv_from_fraction<N>(d2, v, &qb, &rbits, &o);
     }
 
+    #if defined(_INCLUDED_VRA_INSTR_H_) && defined(EXTRA_VRA_STATS)
+    inline int& vra_get_elem_ref(const int idx) { return v[idx]; }
+    #endif
+
     // Explicit conversion functions to C built-in types -------------
     inline Slong to_int64() const { return N==1 ? v[0] : ((Ulong)v[1] << 32) | (Ulong) (unsigned) v[0]; }
     inline Ulong to_uint64() const { return N==1 ? (Ulong) v[0] : ((Ulong)v[1] << 32) | (Ulong) (unsigned) v[0]; }
@@ -1931,14 +1963,30 @@ namespace ac {
   // log2 of 0 is not defined: generate compiler error
   template<> struct log2_ceil<0> {};
 
+  template<bool UpperBoundIsGreaterOrEqual>
+  struct int_range_checker {
+    enum { Upper_bound_must_be_greater_than_or_equal_to_lower_bound };
+  };
+
+  template<>
+  struct int_range_checker<false> {};
+
   template<int LowerBound, int UpperBound>
   struct int_range {
-    enum { l_s = (LowerBound < 0), u_s = (UpperBound < 0),
-           signedness = l_s || u_s,
-           l_nbits = nbits<AC_ABS(LowerBound+l_s)+l_s>::val,
-           u_nbits = nbits<AC_ABS(UpperBound+u_s)+u_s>::val,
-           nbits = AC_MAX(l_nbits, u_nbits + (!u_s && signedness))
-         };
+    enum {
+      checker_enum = int_range_checker<UpperBound >= LowerBound>::Upper_bound_must_be_greater_than_or_equal_to_lower_bound,
+      l_s = (LowerBound < 0),
+      u_s = (UpperBound < 0),
+      special_bounds = (LowerBound == -1) && (UpperBound == 0),
+      l_abs = AC_ABS(LowerBound),
+      u_abs = AC_ABS(UpperBound),
+      l_abs_po2 = ((l_abs & (l_abs - 1)) == 0),
+      u_abs_po2 = ((u_abs & (u_abs - 1)) == 0),
+      signedness = l_s || u_s,
+      l_nbits = nbits<l_abs>::val + int(l_s && !l_abs_po2),
+      u_nbits = special_bounds ? 1 : (nbits<u_abs>::val + int(u_s ? !u_abs_po2 : l_s)),
+      nbits = AC_MAX(l_nbits, u_nbits)
+    };
     typedef ac_int<nbits, signedness> type;
   };
 
@@ -2000,7 +2048,25 @@ namespace ac {
   };
 }
 
-#ifndef _INCLUDED_VRA_INSTR_H_
+#ifdef _INCLUDED_VRA_INSTR_H_
+#ifdef EXTRA_VRA_STATS
+template <int absN, int absW>
+inline int calc_msb_idx_helper(ac_private::iv<absN> &absBaseVar, const bool op2_is_neg) {
+  int& last_elem_ref = absBaseVar.vra_get_elem_ref(absN - 1);
+  ac_vra_ns::base_iv_adjust<absW, false>(last_elem_ref);
+  if (op2_is_neg) {
+    absBaseVar.bitwise_complement(absBaseVar);
+    ac_vra_ns::base_iv_adjust<absW, false>(last_elem_ref);
+    absBaseVar.increment();
+    ac_vra_ns::base_iv_adjust<absW, false>(last_elem_ref);
+  }
+
+  int msb_idx = (32*absN) - int(absBaseVar.leading_bits(false)) - 1;
+
+  return msb_idx;
+}
+#endif
+#else
 // If VRA instrumentation is used, these enums were already defined in vra_instr.h .
 enum ac_q_mode { AC_TRN, AC_RND, AC_TRN_ZERO, AC_RND_ZERO, AC_RND_INF, AC_RND_MIN_INF, AC_RND_CONV, AC_RND_CONV_ODD };
 enum ac_o_mode { AC_WRAP, AC_SAT, AC_SAT_ZERO, AC_SAT_SYM };
@@ -2263,7 +2329,23 @@ public:
   template <class T>
   friend int ac_vra_ns::calc_int_bits(const T op2);
 
+  #ifdef FAST_VRA
+  inline void vraReg(
+    const std::string &var_name,
+    const std::string &file_name, const int line_num,
+    int num_elems
+  ) {
+    typedef typename NumBase::cBase cBase_type;
+
+    constexpr bool is_cmplx = false;
+    cBase_type::registerVar(var_name, file_name, line_num, is_cmplx, num_elems);
+  }
+  #endif
+
   #ifdef EXTRA_VRA_STATS
+  template <int absN, int W2, class T>
+  friend int calc_msb_idx_helper_int(const T &op2, const bool op2_is_neg);
+
   template <int W2, bool S2>
   friend int ac_vra_ns::calc_msb_idx(const ac_int<W2, S2> &op2);
 
@@ -2444,10 +2526,11 @@ public:
   inline static std::string type_name() {
     const char *tf[] = {",false>", ",true>"};
     std::string r = "ac_int<";
-    #ifdef __AC_INT_NUMERICAL_ANALYSIS_BASE
-    // Avoid converting W to ac_int value to prevent infinite recursion from happening
-    // while constructing ac_int_numeric_base. std::to_string is only available since C++11
-    // but that's okay because ac_int VRA requires C++11 or later anyway.
+    #if __cplusplus > 199711L
+    // If we're using C++11 or newer, we use std::to_string for the following reasons:
+    //   1. Avoids infinite construction of ac_int when using AC_INT_VRA.
+    //   2. It's faster.
+    //   3. We can avoid compiler warnings while using -Wall with -O3.
     r += std::to_string(W);
     #else
     r += ac_int<32,true>(W).to_string(AC_DEC);

@@ -2,9 +2,9 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2003.2       *
+ *  Software Version: 2003.3       *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
  *  Release Build   :        *
  *                                                                        *

@@ -2,11 +2,11 @@
  *                                                                        *
  *  Algorithmic C (tm) Datatypes                                          *
  *                                                                        *
- *  Software Version: 2026.2                                              *
+ *  Software Version: 2026.3                                              *
  *                                                                        *
- *  Release Date    : Tue Jun 30 14:57:13 PDT 2026                        *
+ *  Release Date    : Wed Sep  2 19:47:09 PDT 2026                        *
  *  Release Type    : Production Release                                  *
- *  Release Build   : 2026.2.1                                            *
+ *  Release Build   : 2026.3.0                                            *
  *                                                                        *
  *  Copyright 2021 Siemens                                                *
  *                                                                        *
@@ -224,6 +224,17 @@ public:
     return r;
   }
 
+  #ifdef FAST_VRA
+  void vraReg(
+    const std::string &var_name,
+    const std::string &file_name, const int line_num,
+    int num_elems
+  ) {
+    constexpr bool is_cmplx = true;
+    _r.registerVar(var_name, file_name, line_num, is_cmplx, num_elems);
+    _i.registerVar(var_name, file_name, line_num, is_cmplx, num_elems);
+  }
+  #endif
 };
 
 namespace ac_private {
