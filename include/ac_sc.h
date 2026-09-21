@@ -430,17 +430,27 @@ public:
 #else
     virtual void print_variable_declaration_line(FILE* f);
 #endif
-    void compose_data_line(char* rawdata, char* compdata);
 
-#if (SYSTEMC_VERSION >= 20140417)
-    std::string compose_line(const std::string& data);
-#else
-    std::string compose_line(const std::string data);
+#if (SYSTEMC_VERSION < 20240329)															// <  SC-3.0.0
+    void compose_data_line(char* rawdata, char* compdata);
+#else																						// >= SC-3.0.0
+    void compose_data_line(char* rawdata, char* compdata, size_t compdata_n);
 #endif
-    virtual ~vcd_trace();
+
+#if (SYSTEMC_VERSION < 20241015)															// <  SC-3.0.1
+  #if (SYSTEMC_VERSION >= 20140417)															// >= SC-2.3.1
+    std::string compose_line(const std::string& data);
+  #else
+    std::string compose_line(const std::string data);
+  #endif
+#else																						// >= SC-3.0.1
+    void print_data_line(FILE* f, const char* rawdata);
+#endif
+
+    virtual ~vcd_trace() = default;
     const std::string name;
     const std::string vcd_name;
-#if (SYSTEMC_VERSION >= 20171012)
+#if (SYSTEMC_VERSION >= 20171012)															// >= SC-2.3.2
     vcd_trace_file::vcd_enum vcd_var_type;
 #else
     const char* vcd_var_typ_name;
@@ -476,7 +486,11 @@ public:
   virtual void write(FILE* f) {
     // The function to_string(AC_BIN) returns a string with the zero-radix prefix (i.e. "0b").
     // Strip that prefix off because compose_line will add its own.
+#if (SYSTEMC_VERSION < 20241015)															// <  SC-3.0.1
     std::fprintf(f, "%s", compose_line(((ac_int<W,false>)object).to_string(AC_BIN,true).substr(3)).c_str());
+#else																						// >= SC-3.0.1
+    print_data_line( f, ((ac_int<W,false>)object).to_string(AC_BIN,true).substr(3).c_str() );
+#endif
     old_value = object;
   }
 
