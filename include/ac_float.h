@@ -650,17 +650,23 @@ public:
     const int max_E2 = (int) AC_FL(2)::MAX_EXP + I2-IT;
     const int max_ET = AC_MAX(max_E, max_E2);
 
-    ac_fixed<mt_t::width, I+1, mt_t::sign> op1_m_0 = m;
+    // Exponent alignment assumes normalized operands; products need not be normalized.
+    ac_float op1_n = *this;
+    op2_t op2_n = op2;
+    op1_n.normalize();
+    op2_n.normalize();
+
+    ac_fixed<mt_t::width, I+1, mt_t::sign> op1_m_0 = op1_n.m;
     mt_t op1_m = 0;
     op1_m.set_slc(0, op1_m_0.template slc<mt_t::width>(0));
-    int op1_e = exp().to_int() + I-IT;
+    int op1_e = op1_n.exp().to_int() + I-IT;
 
-    ac_fixed<mt_t::width, I2+1, mt_t::sign> op2_m_0 = op2.m;
+    ac_fixed<mt_t::width, I2+1, mt_t::sign> op2_m_0 = op2_n.m;
     mt_t op2_m = 0;
     op2_m.set_slc(0, op2_m_0.template slc<mt_t::width>(0));
     if (sub)
       op2_m = -op2_m;
-    int op2_e = op2.exp().to_int() + I2-IT;
+    int op2_e = op2_n.exp().to_int() + I2-IT;
 
     bool op1_zero = operator !();
     bool op2_zero = !op2;
