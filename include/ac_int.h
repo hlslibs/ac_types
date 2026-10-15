@@ -1151,7 +1151,7 @@ namespace ac_private {
   template<int N, int Nr, bool S>
   inline void iv_shift_l2(const int *op1, signed op2, int *r) {
     if (S && op2 < 0)
-      iv_shift_r<N,Nr>(op1, -op2, r);
+      iv_shift_r<N,Nr>(op1, 0U - static_cast<unsigned int>(op2), r);
     else
       iv_shift_l<N,Nr>(op1, op2, r);
   }
@@ -1162,13 +1162,13 @@ namespace ac_private {
   template<> inline void iv_shift_l2<1,1,true>(const int *op1, signed op2, int *r) {
     r[0] = (op2 >= 0) ?
       (op2 < 32) ? ( (unsigned) op1[0] << op2) : 0 :
-      (op2 > -32) ? (op1[0] >> -op2) : (op1[0] >> 31);
+      (op2 > -32) ? (op1[0] >> (0U - static_cast<unsigned int>(op2))) : (op1[0] >> 31);
   }
 
   template<int N, int Nr, bool S>
   inline void iv_shift_r2(const int *op1, signed op2, int *r) {
     if (S && op2 < 0)
-      iv_shift_l<N,Nr>(op1, -op2, r);
+      iv_shift_l<N,Nr>(op1, 0U - static_cast<unsigned int>(op2), r);
     else
       iv_shift_r<N,Nr>(op1, op2, r);
   }
@@ -1179,7 +1179,7 @@ namespace ac_private {
   template<> inline void iv_shift_r2<1,1,true>(const int *op1, signed op2, int *r) {
     r[0] = (op2 >= 0) ?
       (op2 < 32) ? (op1[0] >> op2) : (op1[0] >> 31) :
-      (op2 > -32) ? ( (unsigned) op1[0] << -op2) : 0;
+      (op2 > -32) ? ( (unsigned) op1[0] << (0U - static_cast<unsigned int>(op2))) : 0;
   }
 
   template<int N, int Nr, int B>
